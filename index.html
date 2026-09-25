@@ -4,12 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Martin Hub - Smart Home Cloud Control</title>
-  <meta name="description" content="Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control." />
+  <meta name="description" content="Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control and MediaPipe hand gesture recognition." />
   <meta property="og:title" content="Martin Hub - Smart Home Cloud Control" />
-  <meta property="og:description" content="Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control." />
+  <meta property="og:description" content="Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control and MediaPipe hand gesture recognition." />
 
   <!-- MQTT library via CDN -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <!-- Google MediaPipe Hands & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 
   <style>
     /* ==========================================================================
@@ -27,6 +31,8 @@
       --accent-relay1-glow: rgba(255, 179, 0, 0.35);
       --accent-relay2: #00d2ff;
       --accent-relay2-glow: rgba(0, 210, 255, 0.35);
+      --accent-purple: #c084fc;
+      --accent-purple-glow: rgba(168, 85, 247, 0.35);
       
       --status-green: #20c997;
       --status-red: #dc3545;
@@ -99,6 +105,17 @@
       width: 380px;
       height: 380px;
       background: radial-gradient(circle, rgba(255, 179, 0, 0.06) 0%, rgba(255, 179, 0, 0.01) 60%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .ambient-purple-orb {
+      position: fixed;
+      bottom: 25%;
+      left: -80px;
+      width: 360px;
+      height: 360px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.06) 0%, rgba(168, 85, 247, 0.01) 60%, transparent 80%);
       pointer-events: none;
       z-index: 0;
     }
@@ -625,6 +642,164 @@
     }
 
     /* ==========================================================================
+       Hand Gesture Control Section (Google MediaPipe Hands)
+       ========================================================================== */
+    .gesture-control-section {
+      background: var(--bg-surface);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+    }
+
+    .gesture-backdrop-halo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 240px;
+      height: 140px;
+      background: radial-gradient(ellipse, rgba(168, 85, 247, 0.16) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      transition: all 0.5s ease;
+    }
+
+    .gesture-control-section.tracking-active .gesture-backdrop-halo {
+      width: 340px;
+      height: 220px;
+      background: radial-gradient(ellipse, rgba(168, 85, 247, 0.3) 0%, rgba(217, 70, 239, 0.15) 50%, transparent 75%);
+    }
+
+    .gesture-header {
+      z-index: 1;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .gesture-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+    }
+
+    .gesture-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .gesture-guide-chips {
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .gesture-guide-item {
+      background: rgba(168, 85, 247, 0.08);
+      border: 1px solid rgba(168, 85, 247, 0.22);
+      border-radius: var(--radius-full);
+      padding: 6px 14px;
+      font-size: 0.74rem;
+      color: #e9d5ff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+
+    /* EXACT Button: id="gestureBtn" */
+    .gesture-btn {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 360px;
+      min-height: 58px;
+      padding: 16px 26px;
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(217, 70, 239, 0.2));
+      border: 1px solid rgba(168, 85, 247, 0.45);
+      border-radius: var(--radius-full);
+      color: #ffffff;
+      font-size: 1.02rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 0 25px rgba(168, 85, 247, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .gesture-btn:hover {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(217, 70, 239, 0.3));
+      border-color: rgba(168, 85, 247, 0.65);
+      box-shadow: 0 0 35px rgba(168, 85, 247, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .gesture-btn:active {
+      transform: scale(0.96);
+    }
+
+    .gesture-btn.active-mode {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(244, 63, 94, 0.2));
+      border-color: rgba(239, 68, 68, 0.55);
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+    }
+
+    /* EXACT Canvas: id="output_canvas" width="320" height="240" */
+    #output_canvas {
+      z-index: 1;
+      width: 320px;
+      max-width: 100%;
+      height: 240px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.8), 0 0 25px rgba(168, 85, 247, 0.2);
+      margin: 14px auto 10px;
+      background: #030712;
+      object-fit: cover;
+    }
+
+    /* Live Cooldown and Recognition Indicator */
+    .gesture-live-feedback {
+      z-index: 1;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #e9d5ff;
+      padding: 6px 16px;
+      background: rgba(168, 85, 247, 0.12);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: var(--radius-full);
+      margin-bottom: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .gesture-live-feedback.cooldown {
+      color: #fcd34d;
+      border-color: rgba(252, 211, 77, 0.4);
+      background: rgba(252, 211, 77, 0.12);
+    }
+
+    /* ==========================================================================
        Status & System Telemetry Card
        ========================================================================== */
     .system-card-shell {
@@ -831,6 +1006,7 @@
 
   <!-- Ambient Light Orbs -->
   <div class="ambient-gold-orb"></div>
+  <div class="ambient-purple-orb"></div>
 
   <!-- Main Smart Hub Dashboard Shell -->
   <main class="app-shell">
@@ -994,6 +1170,38 @@
       </div>
     </section>
 
+    <!-- Hand Gesture Control Section (Google MediaPipe Hands) -->
+    <section class="gesture-control-section" id="gestureControlSection">
+      <div class="gesture-backdrop-halo"></div>
+
+      <div class="gesture-header">
+        <h3 class="gesture-title">Gesture Automation</h3>
+        <p class="gesture-subtitle">Touchless ESP32 relay control powered by Google MediaPipe</p>
+      </div>
+
+      <!-- Gesture reference badges -->
+      <div class="gesture-guide-chips">
+        <span class="gesture-guide-item">☝️ 1 Finger (Index) &rarr; Relay 1</span>
+        <span class="gesture-guide-item">✌️ 2 Fingers (Index + Middle) &rarr; Relay 2</span>
+      </div>
+
+      <!-- Live status / cooldown badge -->
+      <div class="gesture-live-feedback" id="gestureFeedback" style="display: none;">
+        Ready: Hold up 1 or 2 fingers
+      </div>
+
+      <!-- Hidden video element for camera capture -->
+      <video id="webcam" style="display: none;" autoplay playsinline></video>
+
+      <!-- Output Canvas with smooth rounded corners, initially hidden -->
+      <canvas id="output_canvas" width="320" height="240" style="display: none;"></canvas>
+
+      <!-- EXACT Gesture Button with id="gestureBtn" -->
+      <button type="button" class="btn gesture-btn" id="gestureBtn" onclick="toggleGestureControl()">
+        🖐️ Start Gesture Control
+      </button>
+    </section>
+
     <!-- Cloud Connection & System Telemetry Card -->
     <!-- Contains EXACT status-card with id="status" -->
     <section class="system-card-shell">
@@ -1039,7 +1247,7 @@
         <button type="button" class="modal-close-btn" onclick="closeCodeModal()" aria-label="Close modal">✕</button>
       </div>
       <div class="modal-body">
-        <p>This single HTML file contains the full premium Apple HomeKit-style UI, MQTT WebSocket connection to HiveMQ, and voice recognition logic. You can flash it onto an ESP32 SPIFFS/LittleFS web server or host it statically.</p>
+        <p>This single HTML file contains the full premium Apple HomeKit-style UI, MQTT WebSocket connection to HiveMQ, speech recognition, and Google MediaPipe hand gesture control. You can flash it onto an ESP32 SPIFFS/LittleFS web server or host it statically.</p>
         <div class="modal-code-box" id="rawCodePreview">Click "Copy Single-File HTML" below to copy the complete source code directly to your clipboard.</div>
         <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px;">
           <button type="button" class="icon-action-btn" onclick="copyFullHtml()" style="background: #20c997; color: #07090e; font-weight: 600; border-color: #20c997;">
@@ -1118,11 +1326,10 @@
   </script>
 
   <!-- ==========================================================================
-       UI ENHANCEMENT SCRIPT (State observation & glassmorphism visual feedback)
-       Does not interfere with the core MQTT/SpeechRecognition logic above.
+       GOOGLE MEDIAPIPE HAND GESTURE CONTROL & UI ENHANCEMENTS SCRIPT
        ========================================================================== -->
   <script>
-    (function initUIEnhancements() {
+    (function initSmartHubApp() {
       // Local relay state tracking for tactile card visuals
       const relayStates = { 1: false, 2: false };
 
@@ -1177,20 +1384,20 @@
       const r2 = document.getElementById('relay2Card');
 
       if (r1) {
-        r1.addEventListener('click', function(e) {
+        r1.addEventListener('click', function() {
           setRelayCardVisual(1, !relayStates[1]);
           if (navigator.vibrate) { navigator.vibrate(25); }
         });
       }
 
       if (r2) {
-        r2.addEventListener('click', function(e) {
+        r2.addEventListener('click', function() {
           setRelayCardVisual(2, !relayStates[2]);
           if (navigator.vibrate) { navigator.vibrate(25); }
         });
       }
 
-      // Observe #status text changes to update beacon dot and detect voice toggles
+      // Observe #status text changes to update beacon dot and detect toggles
       const statusEl = document.getElementById('status');
       const beacon = document.getElementById('statusBeacon');
 
@@ -1224,6 +1431,235 @@
         voiceObserver.observe(voiceBtn, { childList: true, characterData: true, subtree: true });
       }
 
+      // ========================================================================
+      // Google MediaPipe Hands Gesture Recognition Engine
+      // ========================================================================
+      let cameraInstance = null;
+      let handsInstance = null;
+      let isGestureActive = false;
+      let lastGestureTimestamp = 0;
+      const GESTURE_COOLDOWN_MS = 2500; // 2.5s cooldown
+      let cooldownTimerInterval = null;
+
+      const videoElement = document.getElementById('webcam');
+      const canvasElement = document.getElementById('output_canvas');
+      const canvasCtx = canvasElement ? canvasElement.getContext('2d') : null;
+      const gestureBtn = document.getElementById('gestureBtn');
+      const gestureSection = document.getElementById('gestureControlSection');
+      const feedbackEl = document.getElementById('gestureFeedback');
+
+      // Hand skeleton connections for visualization
+      const HAND_CONNECTIONS = [
+        [0, 1], [1, 2], [2, 3], [3, 4],       // Thumb
+        [0, 5], [5, 6], [6, 7], [7, 8],       // Index
+        [5, 9], [9, 10], [10, 11], [11, 12],   // Middle
+        [9, 13], [13, 14], [14, 15], [15, 16], // Ring
+        [13, 17], [17, 18], [18, 19], [19, 20], // Pinky
+        [0, 17]                               // Palm base
+      ];
+
+      // Update remaining cooldown timer in UI
+      function updateCooldownBadge() {
+        if (!feedbackEl) return;
+        const now = Date.now();
+        const diff = lastGestureTimestamp + GESTURE_COOLDOWN_MS - now;
+        if (diff > 0) {
+          const seconds = (diff / 1000).toFixed(1);
+          feedbackEl.className = 'gesture-live-feedback cooldown';
+          feedbackEl.innerText = '⏳ Cooldown: ' + seconds + 's';
+        } else {
+          feedbackEl.className = 'gesture-live-feedback';
+          feedbackEl.innerText = '✨ Ready: Hold up 1 or 2 fingers';
+          if (cooldownTimerInterval) {
+            clearInterval(cooldownTimerInterval);
+            cooldownTimerInterval = null;
+          }
+        }
+      }
+
+      // MediaPipe Results Callback
+      function onGestureResults(results) {
+        if (!canvasCtx || !canvasElement || !isGestureActive) return;
+
+        // Draw camera frame with mirror effect
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+        // Horizontal flip for natural mirror feedback
+        canvasCtx.translate(canvasElement.width, 0);
+        canvasCtx.scale(-1, 1);
+        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          for (const landmarks of results.multiHandLandmarks) {
+            // Draw skeleton lines
+            canvasCtx.strokeStyle = 'rgba(192, 132, 252, 0.85)';
+            canvasCtx.lineWidth = 2.5;
+            for (const [p1, p2] of HAND_CONNECTIONS) {
+              const start = landmarks[p1];
+              const end = landmarks[p2];
+              canvasCtx.beginPath();
+              canvasCtx.moveTo(start.x * canvasElement.width, start.y * canvasElement.height);
+              canvasCtx.lineTo(end.x * canvasElement.width, end.y * canvasElement.height);
+              canvasCtx.stroke();
+            }
+
+            // Draw joints
+            for (let i = 0; i < landmarks.length; i++) {
+              const pt = landmarks[i];
+              const isFingertip = (i === 8 || i === 12);
+              canvasCtx.beginPath();
+              canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, isFingertip ? 5 : 2.5, 0, 2 * Math.PI);
+              canvasCtx.fillStyle = isFingertip ? '#38bdf8' : '#ffffff';
+              canvasCtx.shadowColor = isFingertip ? '#00d2ff' : 'transparent';
+              canvasCtx.shadowBlur = isFingertip ? 8 : 0;
+              canvasCtx.fill();
+            }
+
+            // Finger extension calculations
+            // Landmark 8: Index tip, 6: Index PIP
+            // Landmark 12: Middle tip, 10: Middle PIP
+            // Landmark 16: Ring tip, 14: Ring PIP
+            // Landmark 20: Pinky tip, 18: Pinky PIP
+            const isIndexUp = landmarks[8].y < landmarks[6].y;
+            const isMiddleUp = landmarks[12].y < landmarks[10].y;
+            const isRingUp = landmarks[16].y < landmarks[14].y;
+            const isPinkyUp = landmarks[20].y < landmarks[18].y;
+
+            const isOneFinger = isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp;
+            const isTwoFingers = isIndexUp && isMiddleUp && !isRingUp && !isPinkyUp;
+
+            const now = Date.now();
+            const inCooldown = (now - lastGestureTimestamp) < GESTURE_COOLDOWN_MS;
+
+            if (!inCooldown) {
+              if (isOneFinger) {
+                lastGestureTimestamp = now;
+                toggleRelay(1);
+                if (statusEl) {
+                  statusEl.innerText = '🖐️ Gesture recognized: 1 Finger -> Relay 1';
+                  statusEl.style.color = '#ffb300';
+                }
+                if (navigator.vibrate) { navigator.vibrate([40, 60, 40]); }
+                startCooldownUI();
+              } else if (isTwoFingers) {
+                lastGestureTimestamp = now;
+                toggleRelay(2);
+                if (statusEl) {
+                  statusEl.innerText = '🖐️ Gesture recognized: 2 Fingers -> Relay 2';
+                  statusEl.style.color = '#00d2ff';
+                }
+                if (navigator.vibrate) { navigator.vibrate([40, 60, 40]); }
+                startCooldownUI();
+              }
+            }
+          }
+        }
+        canvasCtx.restore();
+      }
+
+      function startCooldownUI() {
+        updateCooldownBadge();
+        if (cooldownTimerInterval) clearInterval(cooldownTimerInterval);
+        cooldownTimerInterval = setInterval(updateCooldownBadge, 100);
+      }
+
+      // Global toggle function called by button
+      window.toggleGestureControl = async function() {
+        if (!gestureBtn || !videoElement || !canvasElement) return;
+
+        if (isGestureActive) {
+          // Stop gesture tracking
+          isGestureActive = false;
+          if (cameraInstance) {
+            try { await cameraInstance.stop(); } catch(e) {}
+          }
+          if (videoElement.srcObject) {
+            videoElement.srcObject.getTracks().forEach(function(track) { track.stop(); });
+            videoElement.srcObject = null;
+          }
+          canvasElement.style.display = 'none';
+          if (feedbackEl) feedbackEl.style.display = 'none';
+          if (gestureSection) gestureSection.classList.remove('tracking-active');
+          gestureBtn.innerText = '🖐️ Start Gesture Control';
+          gestureBtn.classList.remove('active-mode');
+          if (cooldownTimerInterval) {
+            clearInterval(cooldownTimerInterval);
+            cooldownTimerInterval = null;
+          }
+          return;
+        }
+
+        // Start gesture tracking
+        try {
+          gestureBtn.innerText = '⏳ Initializing Camera...';
+
+          if (!handsInstance) {
+            if (typeof Hands === 'undefined') {
+              throw new Error('MediaPipe Hands library not loaded yet. Please check your connection.');
+            }
+            handsInstance = new Hands({
+              locateFile: function(file) {
+                return 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/' + file;
+              }
+            });
+            handsInstance.setOptions({
+              maxNumHands: 1,
+              modelComplexity: 1,
+              minDetectionConfidence: 0.6,
+              minTrackingConfidence: 0.6
+            });
+            handsInstance.onResults(onGestureResults);
+          }
+
+          if (typeof Camera !== 'undefined') {
+            if (!cameraInstance) {
+              cameraInstance = new Camera(videoElement, {
+                onFrame: async function() {
+                  if (isGestureActive && handsInstance) {
+                    await handsInstance.send({ image: videoElement });
+                  }
+                },
+                width: 320,
+                height: 240
+              });
+            }
+            await cameraInstance.start();
+          } else {
+            // Native WebRTC getUserMedia fallback
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: { width: 320, height: 240, facingMode: 'user' }
+            });
+            videoElement.srcObject = stream;
+            await videoElement.play();
+            const processFrame = async function() {
+              if (!isGestureActive) return;
+              if (handsInstance) {
+                await handsInstance.send({ image: videoElement });
+              }
+              requestAnimationFrame(processFrame);
+            };
+            requestAnimationFrame(processFrame);
+          }
+
+          isGestureActive = true;
+          canvasElement.style.display = 'block';
+          if (feedbackEl) {
+            feedbackEl.style.display = 'inline-flex';
+            feedbackEl.className = 'gesture-live-feedback';
+            feedbackEl.innerText = '✨ Ready: Hold up 1 or 2 fingers';
+          }
+          if (gestureSection) gestureSection.classList.add('tracking-active');
+          gestureBtn.innerText = '🛑 Stop Gesture Control';
+          gestureBtn.classList.add('active-mode');
+
+        } catch (err) {
+          console.error('Camera/Gesture init error:', err);
+          gestureBtn.innerText = '🖐️ Start Gesture Control';
+          alert('Could not start gesture tracking: ' + (err.message || 'Camera permission denied'));
+        }
+      };
+
       // Helper to test voice phrases directly by simulating speech command
       window.simulateVoicePhrase = function(phrase) {
         const transcriptEl = document.getElementById('transcript');
@@ -1248,7 +1684,7 @@
         }
       };
 
-      window.closeCodeModal = function(e) {
+      window.closeCodeModal = function() {
         const modal = document.getElementById('codeModalBackdrop');
         if (modal) modal.classList.remove('open');
       };

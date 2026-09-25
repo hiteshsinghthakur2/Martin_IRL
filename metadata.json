@@ -1,6 +1,6 @@
 {
   "name": "Project Martin - Smart Home Hub",
   "description": "Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control.",
-  "requestFramePermissions": ["microphone"],
+  "requestFramePermissions": ["microphone", "camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
