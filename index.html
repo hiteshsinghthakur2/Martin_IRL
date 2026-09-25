@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Martin Hub - Smart Home Cloud Control</title>
+  <meta name="description" content="Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control." />
+  <meta property="og:title" content="Martin Hub - Smart Home Cloud Control" />
+  <meta property="og:description" content="Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control." />
+
+  <!-- MQTT library via CDN -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       Project Martin - Apple HomeKit / Glassmorphism Theme
+       ========================================================================== */
+    :root {
+      --bg-primary: #07090e;
+      --bg-surface: rgba(18, 24, 38, 0.72);
+      --bg-surface-elevated: rgba(26, 34, 52, 0.85);
+      --bg-surface-hover: rgba(34, 44, 68, 0.9);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(255, 255, 255, 0.16);
+      
+      --accent-relay1: #ffb300;
+      --accent-relay1-glow: rgba(255, 179, 0, 0.35);
+      --accent-relay2: #00d2ff;
+      --accent-relay2-glow: rgba(0, 210, 255, 0.35);
+      
+      --status-green: #20c997;
+      --status-red: #dc3545;
+      --status-amber: #ffc107;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-faint: #64748b;
+      
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-xl: 32px;
+      --radius-full: 9999px;
+      
+      --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--font-stack);
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-x: hidden;
+      position: relative;
+      padding: 20px 16px 80px;
+      letter-spacing: -0.01em;
+    }
+
+    /* Ambient background glowing orbs */
+    body::before {
+      content: "";
+      position: fixed;
+      top: -120px;
+      left: 10%;
+      width: 480px;
+      height: 480px;
+      background: radial-gradient(circle, rgba(32, 201, 151, 0.08) 0%, rgba(32, 201, 151, 0) 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      bottom: -150px;
+      right: 5%;
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(circle, rgba(0, 210, 255, 0.07) 0%, rgba(0, 210, 255, 0) 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .ambient-gold-orb {
+      position: fixed;
+      top: 40%;
+      right: -100px;
+      width: 380px;
+      height: 380px;
+      background: radial-gradient(circle, rgba(255, 179, 0, 0.06) 0%, rgba(255, 179, 0, 0.01) 60%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* App container */
+    .app-shell {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header Bar */
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      background: var(--bg-surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hub-badge-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, rgba(32, 201, 151, 0.2), rgba(0, 210, 255, 0.2));
+      border: 1px solid rgba(32, 201, 151, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #20c997;
+      box-shadow: 0 0 15px rgba(32, 201, 151, 0.2);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .brand-subtitle {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-action-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .icon-action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      border-color: var(--border-highlight);
+    }
+
+    /* Environmental & Context Bar */
+    .glance-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .glance-item {
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .glance-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .glance-value {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Section Headers */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+      margin-bottom: -6px;
+      padding: 0 4px;
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .section-pill {
+      font-size: 0.7rem;
+      color: var(--text-faint);
+    }
+
+    /* ==========================================================================
+       Relay Toggle Cards (Apple HomeKit Style)
+       ========================================================================== */
+    .relay-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 520px) {
+      .relay-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* Button base - overrides basic button styles with high-end cards */
+    .btn {
+      appearance: none;
+      -webkit-appearance: none;
+      background: var(--bg-surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      cursor: pointer;
+      text-align: left;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.25s ease,
+                  box-shadow 0.25s ease,
+                  background 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 180px;
+      user-select: none;
+      outline: none;
+      color: var(--text-main);
+    }
+
+    .btn:hover {
+      background: var(--bg-surface-elevated);
+      border-color: var(--border-highlight);
+      box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn:focus-visible {
+      box-shadow: 0 0 0 3px rgba(32, 201, 151, 0.4);
+    }
+
+    /* Top row of relay card: Icon + Toggle Switch Indicator */
+    .relay-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .relay-icon-bubble {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      color: var(--text-muted);
+    }
+
+    /* iOS style virtual toggle pill */
+    .relay-ios-switch {
+      width: 44px;
+      height: 26px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-full);
+      padding: 2px;
+      transition: background 0.3s ease;
+      display: flex;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .relay-ios-knob {
+      width: 22px;
+      height: 22px;
+      background: #ffffff;
+      border-radius: var(--radius-full);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      transform: translateX(0px);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
+    }
+
+    /* Relay Card Bottom: Titles and metadata */
+    .relay-card-bottom {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 18px;
+    }
+
+    .relay-card-title {
+      font-size: 1.18rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .relay-card-subtext {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .relay-card-meta {
+      font-size: 0.72rem;
+      color: var(--text-faint);
+      margin-top: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: -0.01em;
+    }
+
+    /* Active Glowing State for Relay 1 (Warm Amber) */
+    .relay-card-1.active-state {
+      background: linear-gradient(145deg, rgba(255, 179, 0, 0.12), rgba(18, 24, 38, 0.85));
+      border-color: rgba(255, 179, 0, 0.4);
+      box-shadow: 0 0 35px -5px var(--accent-relay1-glow);
+    }
+
+    .relay-card-1.active-state .relay-icon-bubble {
+      background: rgba(255, 179, 0, 0.2);
+      border-color: rgba(255, 179, 0, 0.5);
+      color: #ffb300;
+      box-shadow: 0 0 20px rgba(255, 179, 0, 0.4);
+    }
+
+    .relay-card-1.active-state .relay-ios-switch {
+      background: #ffb300;
+    }
+
+    .relay-card-1.active-state .relay-ios-knob {
+      transform: translateX(18px);
+    }
+
+    /* Active Glowing State for Relay 2 (Electric Cyan) */
+    .relay-card-2.active-state {
+      background: linear-gradient(145deg, rgba(0, 210, 255, 0.12), rgba(18, 24, 38, 0.85));
+      border-color: rgba(0, 210, 255, 0.4);
+      box-shadow: 0 0 35px -5px var(--accent-relay2-glow);
+    }
+
+    .relay-card-2.active-state .relay-icon-bubble {
+      background: rgba(0, 210, 255, 0.2);
+      border-color: rgba(0, 210, 255, 0.5);
+      color: #00d2ff;
+      box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+    }
+
+    .relay-card-2.active-state .relay-ios-switch {
+      background: #00d2ff;
+    }
+
+    .relay-card-2.active-state .relay-ios-knob {
+      transform: translateX(18px);
+    }
+
+    /* Ripple tap effect on cards */
+    .btn::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(255, 255, 255, 0.15) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+
+    .btn:active::after {
+      opacity: 1;
+      transition: opacity 0s;
+    }
+
+    /* ==========================================================================
+       Prominent Voice Command Center ("Tap to Speak")
+       ========================================================================== */
+    .voice-control-section {
+      background: var(--bg-surface);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+    }
+
+    .voice-backdrop-halo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 220px;
+      height: 120px;
+      background: radial-gradient(ellipse, rgba(32, 201, 151, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      transition: all 0.5s ease;
+    }
+
+    .voice-control-section.listening .voice-backdrop-halo {
+      width: 320px;
+      height: 200px;
+      background: radial-gradient(ellipse, rgba(32, 201, 151, 0.35) 0%, rgba(0, 210, 255, 0.15) 50%, transparent 75%);
+    }
+
+    .voice-header {
+      z-index: 1;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .voice-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+    }
+
+    .voice-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    /* EXACT Button: class="btn voice-btn", id="voiceBtn", onclick="triggerVoice()" */
+    .voice-btn {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 360px;
+      min-height: 64px;
+      padding: 18px 28px;
+      margin-top: 4px;
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, rgba(32, 201, 151, 0.2), rgba(0, 210, 255, 0.15));
+      border: 1px solid rgba(32, 201, 151, 0.4);
+      border-radius: var(--radius-full);
+      color: #ffffff;
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 0 25px rgba(32, 201, 151, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      text-align: center;
+    }
+
+    .voice-btn:hover {
+      background: linear-gradient(135deg, rgba(32, 201, 151, 0.3), rgba(0, 210, 255, 0.25));
+      border-color: rgba(32, 201, 151, 0.6);
+      box-shadow: 0 0 35px rgba(32, 201, 151, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .voice-btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 0 15px rgba(32, 201, 151, 0.2);
+    }
+
+    /* Listening state indicator animation on voiceBtn */
+    .listening-pulse-ring {
+      display: none;
+      position: absolute;
+      inset: -6px;
+      border-radius: var(--radius-full);
+      border: 2px solid rgba(32, 201, 151, 0.6);
+      animation: pulseRadar 1.5s infinite ease-out;
+      pointer-events: none;
+    }
+
+    .voice-control-section.listening .listening-pulse-ring {
+      display: block;
+    }
+
+    @keyframes pulseRadar {
+      0% {
+        transform: scale(0.96);
+        opacity: 0.9;
+      }
+      100% {
+        transform: scale(1.15);
+        opacity: 0;
+      }
+    }
+
+    /* EXACT Transcript element: class="transcript", id="transcript" */
+    .transcript {
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      min-height: 24px;
+      margin-top: 14px;
+      font-size: 0.92rem;
+      color: var(--status-amber);
+      font-style: italic;
+      text-align: center;
+      transition: all 0.3s ease;
+      line-height: 1.4;
+      padding: 0 12px;
+      word-break: break-word;
+    }
+
+    .transcript:not(:empty) {
+      padding: 10px 16px;
+      background: rgba(255, 193, 7, 0.08);
+      border: 1px solid rgba(255, 193, 7, 0.25);
+      border-radius: var(--radius-md);
+      box-shadow: 0 4px 15px rgba(255, 193, 7, 0.1);
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Speech Command Suggestions */
+    .voice-hints {
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .voice-hint-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      padding: 6px 14px;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .voice-hint-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border-color: var(--border-highlight);
+    }
+
+    /* ==========================================================================
+       Status & System Telemetry Card
+       ========================================================================== */
+    .system-card-shell {
+      background: var(--bg-surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    .status-row-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-indicator-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-beacon-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: var(--radius-full);
+      background: var(--status-amber);
+      box-shadow: 0 0 10px var(--status-amber);
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .status-beacon-dot.online {
+      background: var(--status-green);
+      box-shadow: 0 0 12px var(--status-green);
+      animation: pulseGreen 2.5s infinite;
+    }
+
+    .status-beacon-dot.error {
+      background: var(--status-red);
+      box-shadow: 0 0 12px var(--status-red);
+    }
+
+    @keyframes pulseGreen {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    /* EXACT Status div: class="status-card", id="status" */
+    .status-card {
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: #0dcaf0;
+      letter-spacing: -0.01em;
+      transition: color 0.3s ease;
+    }
+
+    .broker-telemetry-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 10px;
+      font-size: 0.72rem;
+      color: var(--text-faint);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .broker-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ==========================================================================
+       Modal: Full Standalone HTML Code & ESP32 Flash Guide
+       ========================================================================== */
+    .code-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .code-modal-backdrop.open {
+      display: flex;
+    }
+
+    .code-modal {
+      background: #0f141f;
+      border: 1px solid var(--border-highlight);
+      border-radius: var(--radius-xl);
+      width: 100%;
+      max-width: 620px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.25rem;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    .modal-close-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .modal-code-box {
+      background: #080b11;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.74rem;
+      color: #38bdf8;
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .copy-success-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #20c997;
+      color: #07090e;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 10px 20px;
+      border-radius: var(--radius-full);
+      box-shadow: 0 10px 25px rgba(32, 201, 151, 0.4);
+      z-index: 200;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .copy-success-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Footer branding */
+    .footer-note {
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--text-faint);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Light Orbs -->
+  <div class="ambient-gold-orb"></div>
+
+  <!-- Main Smart Hub Dashboard Shell -->
+  <main class="app-shell">
+
+    <!-- Top Navigation & Brand Header -->
+    <header class="header-bar">
+      <div class="brand-group">
+        <div class="hub-badge-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Martin Hub</h1>
+          <div class="brand-subtitle">Project Martin · ESP32 Cloud</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" class="icon-action-btn" onclick="openCodeModal()" title="View & Copy Single-File HTML">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span>Copy HTML</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Environmental & Hub Quick Glance -->
+    <section class="glance-bar" aria-label="System Glance">
+      <div class="glance-item">
+        <span class="glance-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          System Time
+        </span>
+        <span class="glance-value" id="liveClock">--:--</span>
+      </div>
+
+      <div class="glance-item">
+        <span class="glance-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+          </svg>
+          Loads Active
+        </span>
+        <span class="glance-value" id="activeLoadsCount">0 of 2</span>
+      </div>
+
+      <div class="glance-item">
+        <span class="glance-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>
+          Broker SSL
+        </span>
+        <span class="glance-value" style="color: #20c997; font-size: 0.95rem;">Port 8884</span>
+      </div>
+    </section>
+
+    <!-- Smart Relay Cards Section -->
+    <section>
+      <div class="section-header">
+        <h2 class="section-title">ESP32 Hardware Relays</h2>
+        <span class="section-pill">Interactive Tiles</span>
+      </div>
+
+      <div class="relay-grid" style="margin-top: 14px;">
+        <!-- Relay 1: Large Apple HomeKit Style Card -->
+        <!-- Preserves the exact function call: onclick="toggleRelay(1)" -->
+        <button type="button" class="btn relay-card-1" id="relay1Card" onclick="toggleRelay(1)" aria-label="Toggle Relay 1">
+          <div class="relay-card-top">
+            <div class="relay-icon-bubble" id="relay1Icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18h6"></path>
+                <path d="M10 22h4"></path>
+                <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
+              </svg>
+            </div>
+            
+            <div class="relay-ios-switch" aria-hidden="true">
+              <div class="relay-ios-knob"></div>
+            </div>
+          </div>
+
+          <div class="relay-card-bottom">
+            <div class="relay-card-title">
+              <span>Relay 1</span>
+              <span id="relay1Badge" style="font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; background: rgba(255,255,255,0.08); font-weight: 500;">STANDBY</span>
+            </div>
+            <div class="relay-card-subtext">Living Room · Main Ceiling Fixture</div>
+            <div class="relay-card-meta">hitesh/project-martin/relay1</div>
+          </div>
+        </button>
+
+        <!-- Relay 2: Large Apple HomeKit Style Card -->
+        <!-- Preserves the exact function call: onclick="toggleRelay(2)" -->
+        <button type="button" class="btn relay-card-2" id="relay2Card" onclick="toggleRelay(2)" aria-label="Toggle Relay 2">
+          <div class="relay-card-top">
+            <div class="relay-icon-bubble" id="relay2Icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+              </svg>
+            </div>
+
+            <div class="relay-ios-switch" aria-hidden="true">
+              <div class="relay-ios-knob"></div>
+            </div>
+          </div>
+
+          <div class="relay-card-bottom">
+            <div class="relay-card-title">
+              <span>Relay 2</span>
+              <span id="relay2Badge" style="font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; background: rgba(255,255,255,0.08); font-weight: 500;">STANDBY</span>
+            </div>
+            <div class="relay-card-subtext">Bedroom · Wall Outlet & Appliance</div>
+            <div class="relay-card-meta">hitesh/project-martin/relay2</div>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <!-- Voice Command Center -->
+    <section class="voice-control-section" id="voiceControlSection">
+      <div class="voice-backdrop-halo"></div>
+
+      <div class="voice-header">
+        <h3 class="voice-title">Voice Automation</h3>
+        <p class="voice-subtitle">Continuous Web Speech API recognition for ESP32 relays</p>
+      </div>
+
+      <!-- EXACT Voice Button with exact class="btn voice-btn", id="voiceBtn", and onclick="triggerVoice()" -->
+      <button class="btn voice-btn" id="voiceBtn" onclick="triggerVoice()">
+        🎤 Tap to Speak
+        <span class="listening-pulse-ring"></span>
+      </button>
+
+      <!-- EXACT Transcript div with class="transcript" and id="transcript" -->
+      <div class="transcript" id="transcript"></div>
+
+      <!-- Quick Command Hint Chips -->
+      <div class="voice-hints" aria-label="Suggested Voice Phrases">
+        <button type="button" class="voice-hint-chip" onclick="simulateVoicePhrase('turn on relay one')">
+          <span>💬 "Turn on relay one"</span>
+        </button>
+        <button type="button" class="voice-hint-chip" onclick="simulateVoicePhrase('toggle relay two')">
+          <span>💬 "Toggle relay two"</span>
+        </button>
+        <button type="button" class="voice-hint-chip" onclick="simulateVoicePhrase('switch one')">
+          <span>💬 "Switch one"</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Cloud Connection & System Telemetry Card -->
+    <!-- Contains EXACT status-card with id="status" -->
+    <section class="system-card-shell">
+      <div class="status-row-top">
+        <div class="status-indicator-group">
+          <div class="status-beacon-dot" id="statusBeacon"></div>
+          <!-- EXACT ID AND CLASS -->
+          <div class="status-card" id="status">Connecting to Cloud...</div>
+        </div>
+
+        <div style="font-size: 0.74rem; color: var(--text-faint);">
+          ESP32-WROOM-32
+        </div>
+      </div>
+
+      <div class="broker-telemetry-strip">
+        <div class="broker-pill">
+          <span>Broker:</span>
+          <span style="color: var(--text-muted);">broker.hivemq.com</span>
+        </div>
+        <div class="broker-pill">
+          <span>Topic Root:</span>
+          <span style="color: var(--text-muted);">hitesh/project-martin</span>
+        </div>
+        <div class="broker-pill">
+          <span>Protocol:</span>
+          <span style="color: #20c997;">WSS (Encrypted)</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer-note">
+      Project Martin Smart Home · Designed for ESP32 WebSocket MQTT Control
+    </footer>
+
+  </main>
+
+  <!-- Modal: Copy Full Standalone HTML -->
+  <div class="code-modal-backdrop" id="codeModalBackdrop" onclick="closeCodeModal(event)">
+    <div class="code-modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Project Martin · HTML File</h3>
+        <button type="button" class="modal-close-btn" onclick="closeCodeModal()" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>This single HTML file contains the full premium Apple HomeKit-style UI, MQTT WebSocket connection to HiveMQ, and voice recognition logic. You can flash it onto an ESP32 SPIFFS/LittleFS web server or host it statically.</p>
+        <div class="modal-code-box" id="rawCodePreview">Click "Copy Single-File HTML" below to copy the complete source code directly to your clipboard.</div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px;">
+          <button type="button" class="icon-action-btn" onclick="copyFullHtml()" style="background: #20c997; color: #07090e; font-weight: 600; border-color: #20c997;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span>Copy Single-File HTML</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="copy-success-toast" id="copyToast">
+    ✓ Complete HTML copied to clipboard!
+  </div>
+
+  <!-- ==========================================================================
+       ORIGINAL JAVASCRIPT SECTION (UNALTERED VERBATIM AS REQUESTED)
+       Contains: MQTT connection, toggleRelay(), and SpeechRecognition logic.
+       ========================================================================== -->
+  <script>
+    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+
+    client.on('connect', function () {
+      document.getElementById('status').innerText = 'Connected to Cloud. System Ready.';
+      document.getElementById('status').style.color = '#20c997';
+    });
+
+    client.on('error', function (error) {
+      document.getElementById('status').innerText = 'Cloud connection failed.';
+      document.getElementById('status').style.color = '#dc3545';
+    });
+
+    function toggleRelay(num) {
+      const topic = 'hitesh/project-martin/relay' + num;
+      client.publish(topic, 'TOGGLE');
+      document.getElementById('status').innerText = 'Command sent to Relay ' + num;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = function() {
+        document.getElementById('voiceBtn').innerText = '🎙️ Listening...';
+        document.getElementById('transcript').innerText = '';
+      };
+
+      recognition.onresult = function(event) {
+        const command = event.results[0][0].transcript.toLowerCase();
+        document.getElementById('transcript').innerText = 'You said: "' + command + '"';
+        
+        if (command.includes('one') || command.includes('1')) {
+          toggleRelay(1);
+        } else if (command.includes('two') || command.includes('2')) {
+          toggleRelay(2);
+        }
+      };
+
+      recognition.onend = function() {
+        document.getElementById('voiceBtn').innerText = '🎤 Tap to Speak';
+      };
+    }
+
+    function triggerVoice() {
+      if (recognition) recognition.start();
+      else alert("Voice not supported in this browser.");
+    }
+  </script>
+
+  <!-- ==========================================================================
+       UI ENHANCEMENT SCRIPT (State observation & glassmorphism visual feedback)
+       Does not interfere with the core MQTT/SpeechRecognition logic above.
+       ========================================================================== -->
+  <script>
+    (function initUIEnhancements() {
+      // Local relay state tracking for tactile card visuals
+      const relayStates = { 1: false, 2: false };
+
+      // Update live clock
+      function updateClock() {
+        const now = new Date();
+        const clockEl = document.getElementById('liveClock');
+        if (clockEl) {
+          clockEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+
+      // Update active loads count
+      function updateActiveCount() {
+        const count = (relayStates[1] ? 1 : 0) + (relayStates[2] ? 1 : 0);
+        const countEl = document.getElementById('activeLoadsCount');
+        if (countEl) {
+          countEl.innerText = count + ' of 2';
+          countEl.style.color = count > 0 ? '#ffb300' : 'var(--text-main)';
+        }
+      }
+
+      // Visual card state flipper
+      function setRelayCardVisual(num, state) {
+        relayStates[num] = state;
+        const card = document.getElementById('relay' + num + 'Card');
+        const badge = document.getElementById('relay' + num + 'Badge');
+        if (!card) return;
+
+        if (state) {
+          card.classList.add('active-state');
+          if (badge) {
+            badge.innerText = 'ON · ACTIVE';
+            badge.style.background = num === 1 ? 'rgba(255, 179, 0, 0.25)' : 'rgba(0, 210, 255, 0.25)';
+            badge.style.color = num === 1 ? '#ffb300' : '#00d2ff';
+          }
+        } else {
+          card.classList.remove('active-state');
+          if (badge) {
+            badge.innerText = 'STANDBY';
+            badge.style.background = 'rgba(255, 255, 255, 0.08)';
+            badge.style.color = 'var(--text-muted)';
+          }
+        }
+        updateActiveCount();
+      }
+
+      // Intercept clicks on the cards to toggle local visual state smoothly
+      const r1 = document.getElementById('relay1Card');
+      const r2 = document.getElementById('relay2Card');
+
+      if (r1) {
+        r1.addEventListener('click', function(e) {
+          setRelayCardVisual(1, !relayStates[1]);
+          if (navigator.vibrate) { navigator.vibrate(25); }
+        });
+      }
+
+      if (r2) {
+        r2.addEventListener('click', function(e) {
+          setRelayCardVisual(2, !relayStates[2]);
+          if (navigator.vibrate) { navigator.vibrate(25); }
+        });
+      }
+
+      // Observe #status text changes to update beacon dot and detect voice toggles
+      const statusEl = document.getElementById('status');
+      const beacon = document.getElementById('statusBeacon');
+
+      if (statusEl && beacon) {
+        const observer = new MutationObserver(function() {
+          const text = statusEl.innerText.toLowerCase();
+          if (text.includes('connected') || text.includes('ready')) {
+            beacon.className = 'status-beacon-dot online';
+          } else if (text.includes('fail') || text.includes('error')) {
+            beacon.className = 'status-beacon-dot error';
+          } else if (text.includes('relay 1')) {
+            setRelayCardVisual(1, !relayStates[1]);
+          } else if (text.includes('relay 2')) {
+            setRelayCardVisual(2, !relayStates[2]);
+          }
+        });
+        observer.observe(statusEl, { childList: true, characterData: true, subtree: true });
+      }
+
+      // Observe #voiceBtn text to animate the pulse radar & listening halo
+      const voiceBtn = document.getElementById('voiceBtn');
+      const voiceSection = document.getElementById('voiceControlSection');
+      if (voiceBtn && voiceSection) {
+        const voiceObserver = new MutationObserver(function() {
+          if (voiceBtn.innerText.includes('Listening')) {
+            voiceSection.classList.add('listening');
+          } else {
+            voiceSection.classList.remove('listening');
+          }
+        });
+        voiceObserver.observe(voiceBtn, { childList: true, characterData: true, subtree: true });
+      }
+
+      // Helper to test voice phrases directly by simulating speech command
+      window.simulateVoicePhrase = function(phrase) {
+        const transcriptEl = document.getElementById('transcript');
+        if (transcriptEl) {
+          transcriptEl.innerText = 'Simulated: "' + phrase + '"';
+        }
+        const lower = phrase.toLowerCase();
+        if (lower.includes('one') || lower.includes('1')) {
+          toggleRelay(1);
+        } else if (lower.includes('two') || lower.includes('2')) {
+          toggleRelay(2);
+        }
+      };
+
+      // Modal helpers for copying single-file HTML code
+      window.openCodeModal = function() {
+        const modal = document.getElementById('codeModalBackdrop');
+        const preview = document.getElementById('rawCodePreview');
+        if (modal) modal.classList.add('open');
+        if (preview) {
+          preview.innerText = document.documentElement.outerHTML.slice(0, 1500) + '\n\n... [Click "Copy Single-File HTML" to copy the entire file]';
+        }
+      };
+
+      window.closeCodeModal = function(e) {
+        const modal = document.getElementById('codeModalBackdrop');
+        if (modal) modal.classList.remove('open');
+      };
+
+      window.copyFullHtml = function() {
+        const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        navigator.clipboard.writeText(html).then(function() {
+          const toast = document.getElementById('copyToast');
+          if (toast) {
+            toast.classList.add('show');
+            setTimeout(function() {
+              toast.classList.remove('show');
+            }, 3000);
+          }
+        }).catch(function() {
+          alert('Could not copy directly. Please select the code and copy manually.');
+        });
+      };
+    })();
+  </script>
+</body>
+</html>
