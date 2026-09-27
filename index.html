@@ -883,6 +883,34 @@
       gap: 6px;
     }
 
+    /* Reset Wi-Fi Danger/Warning Button */
+    .reset-wifi-btn {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+      padding: 6px 12px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 0.74rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reset-wifi-btn:hover {
+      background: rgba(239, 68, 68, 0.28);
+      border-color: rgba(239, 68, 68, 0.6);
+      color: #ffffff;
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .reset-wifi-btn:active {
+      transform: scale(0.96);
+    }
+
     /* ==========================================================================
        Modal: Full Standalone HTML Code & ESP32 Flash Guide
        ========================================================================== */
@@ -1181,8 +1209,8 @@
 
       <!-- Gesture reference badges -->
       <div class="gesture-guide-chips">
-        <span class="gesture-guide-item">☝️ 1 Finger (Index) &rarr; Relay 1</span>
-        <span class="gesture-guide-item">✌️ 2 Fingers (Index + Middle) &rarr; Relay 2</span>
+        <span class="gesture-guide-item">☝️ 1 Finger &rarr; Relay 1 (Toggle ON / OFF)</span>
+        <span class="gesture-guide-item">✌️ 2 Fingers &rarr; Relay 2 (Toggle ON / OFF)</span>
       </div>
 
       <!-- Live status / cooldown badge -->
@@ -1212,12 +1240,27 @@
           <div class="status-card" id="status">Connecting to Cloud...</div>
         </div>
 
-        <div style="font-size: 0.74rem; color: var(--text-faint);">
-          ESP32-WROOM-32
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="font-size: 0.74rem; color: var(--text-faint);">
+            ESP32-WROOM-32
+          </div>
+          <button type="button" class="reset-wifi-btn" onclick="resetWiFi()" title="Reset ESP32 Wi-Fi Configuration">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+            <span>Reset Wi-Fi</span>
+          </button>
         </div>
       </div>
 
       <div class="broker-telemetry-strip">
+        <div class="broker-pill">
+          <span>Routing:</span>
+          <span style="color: #20c997;">Dual (Cloud + Local)</span>
+        </div>
         <div class="broker-pill">
           <span>Broker:</span>
           <span style="color: var(--text-muted);">broker.hivemq.com</span>
@@ -1225,10 +1268,6 @@
         <div class="broker-pill">
           <span>Topic Root:</span>
           <span style="color: var(--text-muted);">hitesh/project-martin</span>
-        </div>
-        <div class="broker-pill">
-          <span>Protocol:</span>
-          <span style="color: #20c997;">WSS (Encrypted)</span>
         </div>
       </div>
     </section>
@@ -1268,26 +1307,38 @@
   </div>
 
   <!-- ==========================================================================
-       ORIGINAL JAVASCRIPT SECTION (UNALTERED VERBATIM AS REQUESTED)
-       Contains: MQTT connection, toggleRelay(), and SpeechRecognition logic.
+       DUAL-ROUTING & CORE CONTROLLER SCRIPT (CLOUD + LOCAL ESP32 & RESET WI-FI)
        ========================================================================== -->
   <script>
-    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
-
-    client.on('connect', function () {
-      document.getElementById('status').innerText = 'Connected to Cloud. System Ready.';
-      document.getElementById('status').style.color = '#20c997';
-    });
-
-    client.on('error', function (error) {
-      document.getElementById('status').innerText = 'Cloud connection failed.';
-      document.getElementById('status').style.color = '#dc3545';
-    });
+    let client;
+    if (typeof mqtt !== 'undefined') {
+      client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+      client.on('connect', () => document.getElementById('status').innerText = 'System Ready (Cloud + Local).');
+    }
 
     function toggleRelay(num) {
-      const topic = 'hitesh/project-martin/relay' + num;
-      client.publish(topic, 'TOGGLE');
-      document.getElementById('status').innerText = 'Command sent to Relay ' + num;
+      document.getElementById('status').innerText = 'Sending command...';
+      let cloudSent = false;
+      if (typeof client !== 'undefined' && client.connected) {
+        client.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
+        cloudSent = true;
+      }
+
+      fetch('/relay' + num + '/toggle')
+        .then(res => res.text())
+        .then(state => document.getElementById('status').innerText = 'Relay ' + num + ' is ' + state + ' (Local)')
+        .catch(() => {
+          if (cloudSent) document.getElementById('status').innerText = 'Sent command via Cloud';
+          else document.getElementById('status').innerText = 'Error: No local or cloud connection.';
+        });
+    }
+
+    function resetWiFi() {
+      if(confirm("Disconnect ESP32 from current Wi-Fi and reboot into setup mode?")) {
+        fetch('/resetwifi')
+          .then(() => alert("ESP32 is resetting. Connect to the 'THANOS' Wi-Fi network (Password: 11223344) to reconfigure."))
+          .catch(() => alert("Could not reach ESP32 locally to reset Wi-Fi."));
+      }
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1404,13 +1455,25 @@
       if (statusEl && beacon) {
         const observer = new MutationObserver(function() {
           const text = statusEl.innerText.toLowerCase();
-          if (text.includes('connected') || text.includes('ready')) {
+          if (text.includes('connected') || text.includes('ready') || text.includes('(local)') || text.includes('via cloud')) {
             beacon.className = 'status-beacon-dot online';
           } else if (text.includes('fail') || text.includes('error')) {
             beacon.className = 'status-beacon-dot error';
-          } else if (text.includes('relay 1')) {
+          } else if (text.includes('sending')) {
+            beacon.className = 'status-beacon-dot';
+          }
+
+          if (text.includes('relay 1 is on')) {
+            setRelayCardVisual(1, true);
+          } else if (text.includes('relay 1 is off')) {
+            setRelayCardVisual(1, false);
+          } else if (text.includes('relay 2 is on')) {
+            setRelayCardVisual(2, true);
+          } else if (text.includes('relay 2 is off')) {
+            setRelayCardVisual(2, false);
+          } else if (text.startsWith('command sent to relay 1')) {
             setRelayCardVisual(1, !relayStates[1]);
-          } else if (text.includes('relay 2')) {
+          } else if (text.startsWith('command sent to relay 2')) {
             setRelayCardVisual(2, !relayStates[2]);
           }
         });
@@ -1535,22 +1598,34 @@
             if (!inCooldown) {
               if (isOneFinger) {
                 lastGestureTimestamp = now;
+                const nextState = !relayStates[1];
+                setRelayCardVisual(1, nextState);
                 toggleRelay(1);
                 if (statusEl) {
-                  statusEl.innerText = '🖐️ Gesture recognized: 1 Finger -> Relay 1';
-                  statusEl.style.color = '#ffb300';
+                  statusEl.innerText = '🖐️ Gesture (1 Finger): Relay 1 turned ' + (nextState ? 'ON' : 'OFF');
+                  statusEl.style.color = nextState ? '#ffb300' : '#94a3b8';
+                }
+                if (feedbackEl) {
+                  feedbackEl.className = 'gesture-live-feedback';
+                  feedbackEl.innerText = '☝️ Relay 1: ' + (nextState ? 'ON 🟢' : 'OFF ⚪');
                 }
                 if (navigator.vibrate) { navigator.vibrate([40, 60, 40]); }
-                startCooldownUI();
+                startCooldownUI(1, nextState);
               } else if (isTwoFingers) {
                 lastGestureTimestamp = now;
+                const nextState = !relayStates[2];
+                setRelayCardVisual(2, nextState);
                 toggleRelay(2);
                 if (statusEl) {
-                  statusEl.innerText = '🖐️ Gesture recognized: 2 Fingers -> Relay 2';
-                  statusEl.style.color = '#00d2ff';
+                  statusEl.innerText = '🖐️ Gesture (2 Fingers): Relay 2 turned ' + (nextState ? 'ON' : 'OFF');
+                  statusEl.style.color = nextState ? '#00d2ff' : '#94a3b8';
+                }
+                if (feedbackEl) {
+                  feedbackEl.className = 'gesture-live-feedback';
+                  feedbackEl.innerText = '✌️ Relay 2: ' + (nextState ? 'ON 🟢' : 'OFF ⚪');
                 }
                 if (navigator.vibrate) { navigator.vibrate([40, 60, 40]); }
-                startCooldownUI();
+                startCooldownUI(2, nextState);
               }
             }
           }
@@ -1558,10 +1633,27 @@
         canvasCtx.restore();
       }
 
-      function startCooldownUI() {
-        updateCooldownBadge();
+      function startCooldownUI(relayNum, state) {
+        function update() {
+          if (!feedbackEl) return;
+          const now = Date.now();
+          const diff = lastGestureTimestamp + GESTURE_COOLDOWN_MS - now;
+          if (diff > 0) {
+            const seconds = (diff / 1000).toFixed(1);
+            feedbackEl.className = 'gesture-live-feedback cooldown';
+            feedbackEl.innerText = 'Relay ' + relayNum + ' ' + (state ? 'ON' : 'OFF') + ' · Cooldown: ' + seconds + 's';
+          } else {
+            feedbackEl.className = 'gesture-live-feedback';
+            feedbackEl.innerText = '✨ Ready: Hold up 1 or 2 fingers';
+            if (cooldownTimerInterval) {
+              clearInterval(cooldownTimerInterval);
+              cooldownTimerInterval = null;
+            }
+          }
+        }
         if (cooldownTimerInterval) clearInterval(cooldownTimerInterval);
-        cooldownTimerInterval = setInterval(updateCooldownBadge, 100);
+        update();
+        cooldownTimerInterval = setInterval(update, 100);
       }
 
       // Global toggle function called by button
