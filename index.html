@@ -1130,7 +1130,7 @@
           <div class="relay-card-bottom">
             <div class="relay-card-title">
               <span>Relay 1</span>
-              <span id="relay1Badge" style="font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; background: rgba(255,255,255,0.08); font-weight: 500;">STANDBY</span>
+              <span id="relay1Badge" style="font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; background: rgba(255,255,255,0.08); font-weight: 500; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1);">OFF · STANDBY</span>
             </div>
             <div class="relay-card-subtext">Living Room · Main Ceiling Fixture</div>
             <div class="relay-card-meta">hitesh/project-martin/relay1</div>
@@ -1157,7 +1157,7 @@
           <div class="relay-card-bottom">
             <div class="relay-card-title">
               <span>Relay 2</span>
-              <span id="relay2Badge" style="font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; background: rgba(255,255,255,0.08); font-weight: 500;">STANDBY</span>
+              <span id="relay2Badge" style="font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; background: rgba(255,255,255,0.08); font-weight: 500; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1);">OFF · STANDBY</span>
             </div>
             <div class="relay-card-subtext">Bedroom · Wall Outlet & Appliance</div>
             <div class="relay-card-meta">hitesh/project-martin/relay2</div>
@@ -1316,20 +1316,36 @@
       client.on('connect', () => document.getElementById('status').innerText = 'System Ready (Cloud + Local).');
     }
 
-    function toggleRelay(num) {
-      document.getElementById('status').innerText = 'Sending command...';
+    function toggleRelay(num, forcedState) {
+      document.getElementById('status').innerText = 'Sending command to Relay ' + num + '...';
       let cloudSent = false;
       if (typeof client !== 'undefined' && client.connected) {
         client.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
         cloudSent = true;
       }
 
+      // Update local card visuals immediately
+      if (typeof window.applyRelayVisual === 'function') {
+        window.applyRelayVisual(num, forcedState);
+      }
+
       fetch('/relay' + num + '/toggle')
-        .then(res => res.text())
-        .then(state => document.getElementById('status').innerText = 'Relay ' + num + ' is ' + state + ' (Local)')
+        .then(res => {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('text/html')) throw new Error('SPA Fallback');
+          return res.text();
+        })
+        .then(state => {
+          const clean = state.trim();
+          document.getElementById('status').innerText = 'Relay ' + num + ' is ' + clean + ' (Local)';
+          if (typeof window.syncRelayVisualFromHardware === 'function') {
+            window.syncRelayVisualFromHardware(num, clean);
+          }
+        })
         .catch(() => {
-          if (cloudSent) document.getElementById('status').innerText = 'Sent command via Cloud';
-          else document.getElementById('status').innerText = 'Error: No local or cloud connection.';
+          if (cloudSent) document.getElementById('status').innerText = 'Sent command to Relay ' + num + ' via Cloud';
+          else document.getElementById('status').innerText = 'Relay ' + num + ' toggled (Cloud Standby)';
         });
     }
 
@@ -1407,7 +1423,7 @@
 
       // Visual card state flipper
       function setRelayCardVisual(num, state) {
-        relayStates[num] = state;
+        relayStates[num] = !!state;
         const card = document.getElementById('relay' + num + 'Card');
         const badge = document.getElementById('relay' + num + 'Badge');
         if (!card) return;
@@ -1418,63 +1434,48 @@
             badge.innerText = 'ON · ACTIVE';
             badge.style.background = num === 1 ? 'rgba(255, 179, 0, 0.25)' : 'rgba(0, 210, 255, 0.25)';
             badge.style.color = num === 1 ? '#ffb300' : '#00d2ff';
+            badge.style.border = num === 1 ? '1px solid rgba(255, 179, 0, 0.45)' : '1px solid rgba(0, 210, 255, 0.45)';
           }
         } else {
           card.classList.remove('active-state');
           if (badge) {
-            badge.innerText = 'STANDBY';
+            badge.innerText = 'OFF · STANDBY';
             badge.style.background = 'rgba(255, 255, 255, 0.08)';
             badge.style.color = 'var(--text-muted)';
+            badge.style.border = '1px solid rgba(255, 255, 255, 0.1)';
           }
         }
         updateActiveCount();
       }
 
-      // Intercept clicks on the cards to toggle local visual state smoothly
-      const r1 = document.getElementById('relay1Card');
-      const r2 = document.getElementById('relay2Card');
+      window.applyRelayVisual = function(num, forcedState) {
+        const next = (typeof forcedState === 'boolean') ? forcedState : !relayStates[num];
+        setRelayCardVisual(num, next);
+        if (navigator.vibrate) { navigator.vibrate(25); }
+      };
 
-      if (r1) {
-        r1.addEventListener('click', function() {
-          setRelayCardVisual(1, !relayStates[1]);
-          if (navigator.vibrate) { navigator.vibrate(25); }
-        });
-      }
+      window.syncRelayVisualFromHardware = function(num, stateStr) {
+        const upper = (stateStr || '').toUpperCase();
+        if (upper.includes('ON') || upper === '1' || upper === 'HIGH' || upper === 'TRUE') {
+          setRelayCardVisual(num, true);
+        } else if (upper.includes('OFF') || upper === '0' || upper === 'LOW' || upper === 'FALSE') {
+          setRelayCardVisual(num, false);
+        }
+      };
 
-      if (r2) {
-        r2.addEventListener('click', function() {
-          setRelayCardVisual(2, !relayStates[2]);
-          if (navigator.vibrate) { navigator.vibrate(25); }
-        });
-      }
-
-      // Observe #status text changes to update beacon dot and detect toggles
+      // Observe #status text changes to update connection beacon indicator
       const statusEl = document.getElementById('status');
       const beacon = document.getElementById('statusBeacon');
 
       if (statusEl && beacon) {
         const observer = new MutationObserver(function() {
           const text = statusEl.innerText.toLowerCase();
-          if (text.includes('connected') || text.includes('ready') || text.includes('(local)') || text.includes('via cloud')) {
+          if (text.includes('connected') || text.includes('ready') || text.includes('(local)') || text.includes('via cloud') || text.includes('turned on') || text.includes('turned off')) {
             beacon.className = 'status-beacon-dot online';
           } else if (text.includes('fail') || text.includes('error')) {
             beacon.className = 'status-beacon-dot error';
           } else if (text.includes('sending')) {
             beacon.className = 'status-beacon-dot';
-          }
-
-          if (text.includes('relay 1 is on')) {
-            setRelayCardVisual(1, true);
-          } else if (text.includes('relay 1 is off')) {
-            setRelayCardVisual(1, false);
-          } else if (text.includes('relay 2 is on')) {
-            setRelayCardVisual(2, true);
-          } else if (text.includes('relay 2 is off')) {
-            setRelayCardVisual(2, false);
-          } else if (text.startsWith('command sent to relay 1')) {
-            setRelayCardVisual(1, !relayStates[1]);
-          } else if (text.startsWith('command sent to relay 2')) {
-            setRelayCardVisual(2, !relayStates[2]);
           }
         });
         observer.observe(statusEl, { childList: true, characterData: true, subtree: true });
@@ -1599,8 +1600,7 @@
               if (isOneFinger) {
                 lastGestureTimestamp = now;
                 const nextState = !relayStates[1];
-                setRelayCardVisual(1, nextState);
-                toggleRelay(1);
+                toggleRelay(1, nextState);
                 if (statusEl) {
                   statusEl.innerText = '🖐️ Gesture (1 Finger): Relay 1 turned ' + (nextState ? 'ON' : 'OFF');
                   statusEl.style.color = nextState ? '#ffb300' : '#94a3b8';
@@ -1614,8 +1614,7 @@
               } else if (isTwoFingers) {
                 lastGestureTimestamp = now;
                 const nextState = !relayStates[2];
-                setRelayCardVisual(2, nextState);
-                toggleRelay(2);
+                toggleRelay(2, nextState);
                 if (statusEl) {
                   statusEl.innerText = '🖐️ Gesture (2 Fingers): Relay 2 turned ' + (nextState ? 'ON' : 'OFF');
                   statusEl.style.color = nextState ? '#00d2ff' : '#94a3b8';
