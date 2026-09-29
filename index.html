@@ -923,6 +923,42 @@
       transform: scale(0.96);
     }
 
+    /* Web Bluetooth Status Button */
+    .ble-btn {
+      background: rgba(0, 122, 255, 0.15);
+      border: 1px solid rgba(0, 122, 255, 0.35);
+      color: #38bdf8;
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 12px rgba(0, 122, 255, 0.15);
+    }
+
+    .ble-btn:hover {
+      background: rgba(0, 122, 255, 0.25);
+      border-color: rgba(0, 122, 255, 0.6);
+      color: #ffffff;
+      box-shadow: 0 0 18px rgba(0, 122, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .ble-btn:active {
+      transform: scale(0.96);
+    }
+
+    .ble-btn.ble-active {
+      background: rgba(32, 201, 151, 0.18);
+      border-color: rgba(32, 201, 151, 0.5);
+      color: #20c997;
+      box-shadow: 0 0 15px rgba(32, 201, 151, 0.25);
+    }
+
     /* Hub Local IP Address Card (Offline Local HTTP Fallback) */
     .hub-ip-card {
       background: var(--bg-surface);
@@ -1293,6 +1329,11 @@
       </div>
 
       <div class="header-actions">
+        <!-- Web Bluetooth Status Button -->
+        <button type="button" class="ble-btn" id="bleConnectBtn" onclick="connectBLE()" title="Connect Web Bluetooth to Martin-Hub">
+          🔵 Link Bluetooth
+        </button>
+
         <button type="button" class="icon-action-btn" onclick="openCodeModal()" title="View & Copy Single-File HTML">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -1558,15 +1599,15 @@
       <div class="broker-telemetry-strip">
         <div class="broker-pill">
           <span>Routing:</span>
-          <span style="color: #20c997;">Cloud MQTT &rarr; Local Wi-Fi HTTP</span>
+          <span style="color: #20c997;">Tri-Tier: BLE &rarr; Cloud &rarr; Wi-Fi</span>
         </div>
         <div class="broker-pill">
-          <span>Broker:</span>
-          <span style="color: var(--text-muted);">broker.hivemq.com</span>
+          <span>BLE Status:</span>
+          <span style="color: #38bdf8;" id="bleTelemetryStatus">Standby</span>
         </div>
         <div class="broker-pill">
-          <span>HTTP Fallback:</span>
-          <span style="color: #38bdf8;" id="telemetryIpDisplay">Local IP</span>
+          <span>Local IP:</span>
+          <span style="color: #a78bfa;" id="telemetryIpDisplay">Not Set</span>
         </div>
       </div>
     </section>
@@ -1622,6 +1663,93 @@
       });
     }
 
+    // Web Bluetooth GATT Specifications
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let bleDevice = null;
+    let bleCharacteristic = null;
+
+    // Initial pairing & Auto-reconnect setup using "Fast-Fail & Tap Again"
+    async function connectBLE() {
+      const statusEl = document.getElementById('status');
+      const bleBtn = document.getElementById('bleConnectBtn');
+      const bleTelemetry = document.getElementById('bleTelemetryStatus');
+      
+      try {
+        // 1. Fast reconnect check: if pointer exists but link dropped
+        if (bleDevice && !bleDevice.gatt.connected) {
+          statusEl.innerText = "Reconnecting Bluetooth...";
+          try {
+            await bleDevice.gatt.connect();
+            await setupGATT();
+            return; // Fast reconnect successful
+          } catch (reconnectError) {
+            console.warn("Dead memory pointer. Forcing user to tap again.", reconnectError);
+            bleDevice = null; 
+            bleCharacteristic = null;
+            statusEl.innerText = "Memory cleared. Tap Reconnect again.";
+            if (bleBtn) {
+              bleBtn.innerText = "🔵 Tap Again to Scan";
+              bleBtn.classList.remove('ble-active');
+            }
+            if (bleTelemetry) {
+              bleTelemetry.innerText = "Disconnected";
+              bleTelemetry.style.color = "#ef4444";
+            }
+            return; // STOP: Wait for a fresh physical tap to preserve Chrome user activation
+          }
+        }
+
+        // 2. Fresh Scan (Executes on first load or on second tap after dead pointer)
+        statusEl.innerText = "Scanning for Martin-Hub...";
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [SERVICE_UUID] }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', onBLEDisconnected);
+        await bleDevice.gatt.connect();
+        await setupGATT();
+
+      } catch (err) {
+        console.warn("Bluetooth connection failed/cancelled:", err);
+        statusEl.innerText = "Bluetooth Error. Tap to retry.";
+      }
+    }
+
+    async function setupGATT() {
+      if (!bleDevice || !bleDevice.gatt.connected) return;
+      const service = await bleDevice.gatt.getPrimaryService(SERVICE_UUID);
+      bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+      
+      const bleBtn = document.getElementById('bleConnectBtn');
+      if (bleBtn) {
+        bleBtn.innerText = "🟢 Bluetooth Active";
+        bleBtn.classList.add('ble-active');
+      }
+      const bleTelemetry = document.getElementById('bleTelemetryStatus');
+      if (bleTelemetry) {
+        bleTelemetry.innerText = "Connected";
+        bleTelemetry.style.color = "#20c997";
+      }
+      document.getElementById('status').innerText = "Bluetooth Securely Linked";
+    }
+
+    function onBLEDisconnected() {
+      bleCharacteristic = null; 
+      const bleBtn = document.getElementById('bleConnectBtn');
+      if (bleBtn) {
+        bleBtn.innerText = "🔵 Reconnect Bluetooth";
+        bleBtn.classList.remove('ble-active');
+      }
+      const bleTelemetry = document.getElementById('bleTelemetryStatus');
+      if (bleTelemetry) {
+        bleTelemetry.innerText = "Disconnected";
+        bleTelemetry.style.color = "#ef4444";
+      }
+      document.getElementById('status').innerText = "Bluetooth Disconnected.";
+    }
+
     // Hub Local IP Persistence (Local HTTP Fallback)
     function saveHubLocalIp() {
       const input = document.getElementById('hubIpInput');
@@ -1645,7 +1773,8 @@
       }
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Restore saved local IP
       const savedIp = localStorage.getItem('hubLocalIp') || '';
       const input = document.getElementById('hubIpInput');
       if (input) {
@@ -1656,9 +1785,24 @@
         });
       }
       updateTelemetryIpDisplay();
+
+      // Background BLE auto-reconnect if device is already paired
+      if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+        try {
+          const devices = await navigator.bluetooth.getDevices();
+          const martin = devices.find(d => d.name === 'Martin-Hub');
+          if (martin) {
+            bleDevice = martin;
+            bleDevice.addEventListener('gattserverdisconnected', onBLEDisconnected);
+            bleDevice.gatt.connect().then(setupGATT).catch(() => {});
+          }
+        } catch (e) {
+          console.warn("BLE auto-reconnect check:", e);
+        }
+      }
     });
 
-    // Dual-Tier Routing: Cloud (MQTT) -> Local HTTP Fallback (Wi-Fi)
+    // Tri-Tier Cascade: Tier 1 (Bluetooth) -> Tier 2 (Cloud MQTT) -> Tier 3 (Local HTTP)
     async function toggleRelay(num) {
       const statusEl = document.getElementById('status');
       statusEl.innerText = `Routing Relay ${num}...`;
@@ -1668,21 +1812,34 @@
         window.applyRelayVisual(num);
       }
 
-      // Tier 1: Cloud (Instantly bypass if browser knows it is offline)
+      // Tier 1: Bluetooth GATT
+      if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected && bleCharacteristic) {
+        try {
+          const encoder = new TextEncoder();
+          await bleCharacteristic.writeValue(encoder.encode(`TOGGLE_${num}`));
+          statusEl.innerText = `Relay ${num} toggled via Bluetooth`;
+          return;
+        } catch (bleErr) {
+          console.warn("BLE write failed, falling back to Tier 2 (Cloud):", bleErr);
+          onBLEDisconnected();
+        }
+      }
+
+      // Tier 2: Cloud MQTT
       if (navigator.onLine && typeof mqttClient !== 'undefined' && mqttClient.connected) {
         mqttClient.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
         statusEl.innerText = `Relay ${num} toggled via Cloud`;
         return;
       }
 
-      // Tier 2: Local HTTP Fallback
+      // Tier 3: Local HTTP Wi-Fi Fallback
       const localIp = document.getElementById('hubIpInput').value || localStorage.getItem('hubLocalIp');
       if (!localIp) {
-        statusEl.innerText = "Error: Enter Hub Local IP for offline control.";
+        statusEl.innerText = "Error: BLE & Cloud offline. Configure Hub Local IP for Wi-Fi fallback.";
         return;
       }
 
-      statusEl.innerText = `Cloud unreachable. Sending local request...`;
+      statusEl.innerText = `Routing to local Hub IP (${localIp})...`;
       
       // 2.5-second timeout to prevent the app from freezing if the IP is unreachable
       const controller = new AbortController();
@@ -1829,7 +1986,7 @@
       if (statusEl && beacon) {
         const observer = new MutationObserver(function() {
           const text = statusEl.innerText.toLowerCase();
-          if (text.includes('connected') || text.includes('ready') || text.includes('locally') || text.includes('wi-fi') || text.includes('via cloud') || text.includes('turned on') || text.includes('turned off')) {
+          if (text.includes('connected') || text.includes('ready') || text.includes('linked') || text.includes('via bluetooth') || text.includes('via cloud') || text.includes('locally') || text.includes('wi-fi') || text.includes('turned on') || text.includes('turned off')) {
             beacon.className = 'status-beacon-dot online';
           } else if (text.includes('fail') || text.includes('error') || text.includes('disconnected')) {
             beacon.className = 'status-beacon-dot error';
