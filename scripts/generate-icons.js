@@ -1,0 +1,66 @@
+import sharp from 'sharp';
+import fs from 'fs';
+
+async function generate() {
+  const svg = fs.readFileSync('public/icon.svg');
+
+  // Standard icons (exact render of the favicon SVG)
+  await sharp(svg)
+    .resize(192, 192)
+    .png()
+    .toFile('public/icon-192.png');
+  console.log('Generated public/icon-192.png');
+
+  await sharp(svg)
+    .resize(512, 512)
+    .png()
+    .toFile('public/icon-512.png');
+  console.log('Generated public/icon-512.png');
+
+  // Maskable icon with 15% safe padding for Android adaptive launchers
+  const maskableSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+    <defs>
+      <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0b1329"/>
+        <stop offset="100%" stop-color="#07090e"/>
+      </linearGradient>
+      <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#20c997"/>
+        <stop offset="100%" stop-color="#00d2ff"/>
+      </linearGradient>
+      <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ffb300"/>
+        <stop offset="100%" stop-color="#ff8f00"/>
+      </linearGradient>
+    </defs>
+    <!-- Full background for adaptive icon masking -->
+    <rect width="512" height="512" fill="url(#bg)"/>
+    
+    <!-- Centered inner emblem inside 80% safe zone -->
+    <g transform="translate(64, 64) scale(0.75)">
+      <!-- Smart Hub Home Icon -->
+      <path d="M120 220 L256 110 L392 220 V380 C392 396 378 410 362 410 H150 C134 410 120 396 120 380 Z" fill="none" stroke="url(#brand)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+      
+      <!-- Relays and Connectivity Nodes -->
+      <circle cx="210" cy="300" r="28" fill="url(#accent)"/>
+      <circle cx="302" cy="300" r="28" fill="url(#brand)"/>
+      <line x1="210" y1="340" x2="210" y2="400" stroke="rgba(255, 179, 0, 0.6)" stroke-width="12" stroke-linecap="round"/>
+      <line x1="302" y1="340" x2="302" y2="400" stroke="rgba(0, 210, 255, 0.6)" stroke-width="12" stroke-linecap="round"/>
+
+      <!-- Wireless Signals -->
+      <path d="M216 170 A60 60 0 0 1 296 170" fill="none" stroke="#20c997" stroke-width="14" stroke-linecap="round"/>
+      <path d="M186 140 A100 100 0 0 1 326 140" fill="none" stroke="#00d2ff" stroke-width="14" stroke-linecap="round"/>
+    </g>
+  </svg>`;
+
+  await sharp(Buffer.from(maskableSvg))
+    .resize(512, 512)
+    .png()
+    .toFile('public/icon-512-maskable.png');
+  console.log('Generated public/icon-512-maskable.png');
+}
+
+generate().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
