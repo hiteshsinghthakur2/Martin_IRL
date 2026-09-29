@@ -8,6 +8,15 @@
   <meta property="og:title" content="Martin Hub - Smart Home Cloud Control" />
   <meta property="og:description" content="Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT with voice control and MediaPipe hand gesture recognition." />
 
+  <!-- PWA Manifest & Mobile Web App Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#07090e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Martin Hub">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+
   <!-- MQTT library via CDN -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -1924,6 +1933,17 @@
         });
       };
     })();
+  </script>
+
+  <!-- PWA Service Worker Registration for Offline Caching -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(() => console.log('ServiceWorker registered for offline use.'))
+          .catch(err => console.error('ServiceWorker registration failed: ', err));
+      });
+    }
   </script>
 </body>
 </html>

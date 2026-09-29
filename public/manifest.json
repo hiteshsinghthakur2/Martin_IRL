@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Martin Hub - Smart Home Cloud Control",
+  "short_name": "MartinHub",
+  "description": "Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT, voice, MediaPipe gestures, and Web Bluetooth fallback.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
