@@ -1381,17 +1381,23 @@
 
     // Initial pairing & Auto-reconnect setup
     async function connectBLE() {
+      const statusEl = document.getElementById('status');
+      
       try {
-        const statusEl = document.getElementById('status');
-        
-        // Auto-reconnect if already paired
+        // 1. Attempt fast reconnect if we already have a device pointer
         if (bleDevice && !bleDevice.gatt.connected) {
           statusEl.innerText = "Reconnecting Bluetooth...";
-          await setupGATT();
-          return;
+          try {
+            await setupGATT();
+            return; // Fast reconnect successful
+          } catch (reconnectError) {
+            console.warn("Fast reconnect failed (Adapter likely cycled). Forcing fresh scan.", reconnectError);
+            bleDevice = null; // Destroy the dead pointer
+            bleCharacteristic = null;
+          }
         }
 
-        // First time secure pairing (Requests OS PIN 123456)
+        // 2. Fresh Scan (Happens on first load, or if adapter was cycled)
         statusEl.innerText = "Scanning for Hub...";
         bleDevice = await navigator.bluetooth.requestDevice({
           filters: [{ services: [SERVICE_UUID] }],
@@ -1400,33 +1406,29 @@
 
         bleDevice.addEventListener('gattserverdisconnected', onBLEDisconnected);
         await setupGATT();
+
       } catch (err) {
-        console.warn("Bluetooth connection failed:", err);
-        document.getElementById('status').innerText = "Bluetooth Error. Try Again.";
+        console.warn("Bluetooth connection failed/cancelled:", err);
+        statusEl.innerText = "Bluetooth Error. Try Again.";
       }
     }
 
     async function setupGATT() {
-      if (!bleDevice) return;
-      try {
-        const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-        
-        const bleBtn = document.getElementById('bleConnectBtn');
-        if (bleBtn) {
-          bleBtn.innerText = "🟢 Bluetooth Active";
-          bleBtn.classList.add('ble-active');
-        }
-        document.getElementById('status').innerText = "Bluetooth Securely Linked";
-      } catch (error) {
-        console.error("GATT Setup Failed:", error);
-        onBLEDisconnected();
+      // Do not wrap this in a silent try/catch, we want the error to bubble up to connectBLE
+      const server = await bleDevice.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+      
+      const bleBtn = document.getElementById('bleConnectBtn');
+      if (bleBtn) {
+        bleBtn.innerText = "🟢 Bluetooth Active";
+        bleBtn.classList.add('ble-active');
       }
+      document.getElementById('status').innerText = "Bluetooth Securely Linked";
     }
 
     function onBLEDisconnected() {
-      bleCharacteristic = null; // Clear stale cache to fix reconnect bug
+      bleCharacteristic = null; 
       const bleBtn = document.getElementById('bleConnectBtn');
       if (bleBtn) {
         bleBtn.innerText = "🔵 Reconnect Bluetooth";
