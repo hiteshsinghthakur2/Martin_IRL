@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_primary">#07090E</color>
+    <color name="accent_teal">#20C997</color>
+    <color name="accent_blue">#00D2FF</color>
+</resources>

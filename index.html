@@ -957,6 +957,123 @@
     }
 
     /* ==========================================================================
+       Native Android APK Install Banner
+       ========================================================================== */
+    .apk-download-banner {
+      background: linear-gradient(135deg, rgba(32, 201, 151, 0.12), rgba(0, 122, 255, 0.08));
+      border: 1px solid rgba(32, 201, 151, 0.32);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.5);
+      flex-wrap: wrap;
+      transition: all 0.2s ease;
+    }
+
+    .apk-download-banner:hover {
+      border-color: rgba(32, 201, 151, 0.5);
+      box-shadow: 0 12px 30px -8px rgba(32, 201, 151, 0.2);
+    }
+
+    .apk-banner-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .apk-icon-box {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-md);
+      background: rgba(32, 201, 151, 0.16);
+      border: 1px solid rgba(32, 201, 151, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #20c997;
+      flex-shrink: 0;
+      box-shadow: 0 0 16px rgba(32, 201, 151, 0.25);
+    }
+
+    .apk-text-group {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .apk-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .apk-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+    }
+
+    .apk-badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: var(--radius-full);
+      background: rgba(32, 201, 151, 0.2);
+      border: 1px solid rgba(32, 201, 151, 0.4);
+      color: #20c997;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .apk-subtitle {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    .apk-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .apk-download-btn {
+      background: linear-gradient(135deg, #20c997, #00b4d8);
+      color: #07090e;
+      text-decoration: none;
+      padding: 9px 18px;
+      border-radius: var(--radius-full);
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 4px 15px rgba(32, 201, 151, 0.35);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .apk-download-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(32, 201, 151, 0.5);
+      filter: brightness(1.08);
+      color: #000000;
+    }
+
+    .apk-download-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* ==========================================================================
        Modal: Full Standalone HTML Code & ESP32 Flash Guide
        ========================================================================== */
     .code-modal-backdrop {
@@ -1114,6 +1231,36 @@
         </button>
       </div>
     </header>
+
+    <!-- Native Android App Install Banner -->
+    <section class="apk-download-banner" id="apkBanner" aria-label="Native Android App Download">
+      <div class="apk-banner-content">
+        <div class="apk-icon-box" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            <path d="M8 2h8"></path>
+          </svg>
+        </div>
+        <div class="apk-text-group">
+          <div class="apk-title-row">
+            <span class="apk-title">Project Martin for Android</span>
+            <span class="apk-badge">Native APK</span>
+          </div>
+          <p class="apk-subtitle">Install the native Android app for zero-friction auto-connecting offline Bluetooth control.</p>
+        </div>
+      </div>
+      <div class="apk-actions">
+        <a href="/martin-hub.apk" download="martin-hub.apk" class="apk-download-btn" id="apkDownloadBtn" title="Download Project Martin Android APK">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>📱 Download Android App (.apk)</span>
+        </a>
+      </div>
+    </section>
 
     <!-- Environmental & Hub Quick Glance -->
     <section class="glance-bar" aria-label="System Glance">
@@ -1912,6 +2059,20 @@
           toggleRelay(2);
         }
       };
+
+      // Native Android APK download click validation
+      const apkBtn = document.getElementById('apkDownloadBtn');
+      if (apkBtn) {
+        apkBtn.addEventListener('click', function(e) {
+          fetch('/martin-hub.apk', { method: 'HEAD' })
+            .then(function(res) {
+              if (!res.ok) {
+                alert("Project Martin Android APK\n\nThe full native Android project files are ready in the /android directory of this app.\n\nOpen the folder in Android Studio, select 'Build > Build APK(s)', and place martin-hub.apk in the public/ directory to enable direct downloads.");
+              }
+            })
+            .catch(function() {});
+        });
+      }
 
       // Modal helpers for copying single-file HTML code
       window.openCodeModal = function() {
