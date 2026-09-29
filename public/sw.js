@@ -1,9 +1,12 @@
-const CACHE_NAME = 'martin-hub-v1';
+const CACHE_NAME = 'martin-hub-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-512-maskable.png',
   'https://unpkg.com/mqtt/dist/mqtt.min.js',
   'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
   'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'

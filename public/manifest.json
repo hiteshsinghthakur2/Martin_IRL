@@ -1,19 +1,56 @@
 {
   "id": "/",
   "name": "Martin Hub - Smart Home Cloud Control",
-  "short_name": "MartinHub",
-  "description": "Premium Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT, voice, MediaPipe gestures, and Web Bluetooth fallback.",
+  "short_name": "Martin Hub",
+  "description": "Apple HomeKit-style dark mode dashboard for Project Martin controlling ESP32 relays via HiveMQ MQTT, voice commands, MediaPipe hand gestures, and Web Bluetooth.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
   "background_color": "#07090e",
   "theme_color": "#07090e",
+  "categories": ["utilities", "lifestyle"],
   "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Relay 1 Toggle",
+      "short_name": "Relay 1",
+      "description": "Quickly toggle Relay 1",
+      "url": "/?action=relay1",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Relay 2 Toggle",
+      "short_name": "Relay 2",
+      "description": "Quickly toggle Relay 2",
+      "url": "/?action=relay2",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
