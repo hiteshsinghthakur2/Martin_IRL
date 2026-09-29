@@ -911,6 +911,42 @@
       transform: scale(0.96);
     }
 
+    /* Web Bluetooth Status Button */
+    .ble-btn {
+      background: rgba(0, 122, 255, 0.15);
+      border: 1px solid rgba(0, 122, 255, 0.35);
+      color: #38bdf8;
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 12px rgba(0, 122, 255, 0.15);
+    }
+
+    .ble-btn:hover {
+      background: rgba(0, 122, 255, 0.25);
+      border-color: rgba(0, 122, 255, 0.6);
+      color: #ffffff;
+      box-shadow: 0 0 18px rgba(0, 122, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .ble-btn:active {
+      transform: scale(0.96);
+    }
+
+    .ble-btn.ble-active {
+      background: rgba(32, 201, 151, 0.18);
+      border-color: rgba(32, 201, 151, 0.5);
+      color: #20c997;
+      box-shadow: 0 0 15px rgba(32, 201, 151, 0.25);
+    }
+
     /* ==========================================================================
        Modal: Full Standalone HTML Code & ESP32 Flash Guide
        ========================================================================== */
@@ -1055,6 +1091,11 @@
       </div>
 
       <div class="header-actions">
+        <!-- Web Bluetooth Status Button -->
+        <button type="button" class="ble-btn" id="bleConnectBtn" onclick="connectBLE()" title="Connect Web Bluetooth to Martin-Hub">
+          🔵 Link Bluetooth
+        </button>
+
         <button type="button" class="icon-action-btn" onclick="openCodeModal()" title="View & Copy Single-File HTML">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -1259,15 +1300,15 @@
       <div class="broker-telemetry-strip">
         <div class="broker-pill">
           <span>Routing:</span>
-          <span style="color: #20c997;">Dual (Cloud + Local)</span>
+          <span style="color: #20c997;">Cloud MQTT &rarr; BLE Fallback</span>
         </div>
         <div class="broker-pill">
           <span>Broker:</span>
           <span style="color: var(--text-muted);">broker.hivemq.com</span>
         </div>
         <div class="broker-pill">
-          <span>Topic Root:</span>
-          <span style="color: var(--text-muted);">hitesh/project-martin</span>
+          <span>BLE Target:</span>
+          <span style="color: #38bdf8;">Martin-Hub</span>
         </div>
       </div>
     </section>
@@ -1307,46 +1348,122 @@
   </div>
 
   <!-- ==========================================================================
-       DUAL-ROUTING & CORE CONTROLLER SCRIPT (CLOUD + LOCAL ESP32 & RESET WI-FI)
+       DUAL-ROUTING (CLOUD MQTT + WEB BLUETOOTH FALLBACK) & ESP32 CONTROLLER
        ========================================================================== -->
   <script>
+    // MQTT Cloud Connection
     let client;
+    let mqttClient;
     if (typeof mqtt !== 'undefined') {
-      client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
-      client.on('connect', () => document.getElementById('status').innerText = 'System Ready (Cloud + Local).');
+      mqttClient = client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+      mqttClient.on('connect', () => {
+        document.getElementById('status').innerText = 'System Ready (Cloud Active).';
+      });
+      mqttClient.on('error', (err) => {
+        console.warn('MQTT error:', err);
+      });
     }
 
-    function toggleRelay(num, forcedState) {
-      document.getElementById('status').innerText = 'Sending command to Relay ' + num + '...';
-      let cloudSent = false;
-      if (typeof client !== 'undefined' && client.connected) {
-        client.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
-        cloudSent = true;
-      }
+    // Web Bluetooth GATT Specifications
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let bleDevice = null;
+    let bleCharacteristic = null;
 
-      // Update local card visuals immediately
+    // Initial pairing & Auto-reconnect setup
+    async function connectBLE() {
+      try {
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = "Pairing Bluetooth...";
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'Martin-Hub' }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', onBLEDisconnected);
+        await setupGATT();
+      } catch (err) {
+        console.warn("Bluetooth pairing cancelled or failed:", err);
+      }
+    }
+
+    async function setupGATT() {
+      if (!bleDevice) return;
+      const server = await bleDevice.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+      
+      const bleBtn = document.getElementById('bleConnectBtn');
+      if (bleBtn) {
+        bleBtn.innerText = "🟢 Bluetooth Active";
+        bleBtn.classList.add('ble-active');
+      }
+      document.getElementById('status').innerText = "Bluetooth Linked";
+    }
+
+    function onBLEDisconnected() {
+      const bleBtn = document.getElementById('bleConnectBtn');
+      if (bleBtn) {
+        bleBtn.innerText = "🔵 Reconnect Bluetooth";
+        bleBtn.classList.remove('ble-active');
+      }
+      document.getElementById('status').innerText = "Bluetooth Disconnected. Reconnecting...";
+      setTimeout(() => {
+        if (bleDevice && !bleDevice.gatt.connected) {
+          bleDevice.gatt.connect().then(setupGATT).catch(() => {});
+        }
+      }, 2000);
+    }
+
+    // Background auto-reconnect on page load if already paired
+    window.addEventListener('DOMContentLoaded', async () => {
+      if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+        const devices = await navigator.bluetooth.getDevices();
+        const martin = devices.find(d => d.name === 'Martin-Hub');
+        if (martin) {
+          bleDevice = martin;
+          bleDevice.addEventListener('gattserverdisconnected', onBLEDisconnected);
+          bleDevice.gatt.connect().then(setupGATT).catch(() => {});
+        }
+      }
+    });
+
+    // Dual-Routing Toggle (Cloud MQTT -> Bluetooth Fallback)
+    async function toggleRelay(num, forcedState) {
+      const statusEl = document.getElementById('status');
+      statusEl.innerText = `Sending Relay ${num} command...`;
+
+      // Update tactile card visual & haptics immediately
       if (typeof window.applyRelayVisual === 'function') {
         window.applyRelayVisual(num, forcedState);
       }
 
-      fetch('/relay' + num + '/toggle')
-        .then(res => {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          const ct = res.headers.get('content-type') || '';
-          if (ct.includes('text/html')) throw new Error('SPA Fallback');
-          return res.text();
-        })
-        .then(state => {
-          const clean = state.trim();
-          document.getElementById('status').innerText = 'Relay ' + num + ' is ' + clean + ' (Local)';
-          if (typeof window.syncRelayVisualFromHardware === 'function') {
-            window.syncRelayVisualFromHardware(num, clean);
-          }
-        })
-        .catch(() => {
-          if (cloudSent) document.getElementById('status').innerText = 'Sent command to Relay ' + num + ' via Cloud';
-          else document.getElementById('status').innerText = 'Relay ' + num + ' toggled (Cloud Standby)';
-        });
+      let sentViaCloud = false;
+      if (typeof mqttClient !== 'undefined' && mqttClient.connected) {
+        mqttClient.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
+        sentViaCloud = true;
+      } else if (typeof client !== 'undefined' && client.connected) {
+        client.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
+        sentViaCloud = true;
+      }
+
+      // If Cloud is unreachable or offline, send over BLE
+      if (!sentViaCloud && bleCharacteristic) {
+        try {
+          const encoder = new TextEncoder();
+          await bleCharacteristic.writeValue(encoder.encode(`TOGGLE_${num}`));
+          statusEl.innerText = `Relay ${num} toggled via Bluetooth (Offline)`;
+          return;
+        } catch (err) {
+          console.error("BLE write failed:", err);
+        }
+      }
+
+      if (sentViaCloud) {
+        statusEl.innerText = `Relay ${num} toggled via Cloud`;
+      } else {
+        statusEl.innerText = "Failed: No Cloud or Bluetooth connection";
+      }
     }
 
     function resetWiFi() {
@@ -1470,11 +1587,11 @@
       if (statusEl && beacon) {
         const observer = new MutationObserver(function() {
           const text = statusEl.innerText.toLowerCase();
-          if (text.includes('connected') || text.includes('ready') || text.includes('(local)') || text.includes('via cloud') || text.includes('turned on') || text.includes('turned off')) {
+          if (text.includes('connected') || text.includes('ready') || text.includes('linked') || text.includes('bluetooth (offline)') || text.includes('via cloud') || text.includes('turned on') || text.includes('turned off')) {
             beacon.className = 'status-beacon-dot online';
-          } else if (text.includes('fail') || text.includes('error')) {
+          } else if (text.includes('fail') || text.includes('error') || text.includes('disconnected')) {
             beacon.className = 'status-beacon-dot error';
-          } else if (text.includes('sending')) {
+          } else if (text.includes('sending') || text.includes('pairing') || text.includes('reconnecting')) {
             beacon.className = 'status-beacon-dot';
           }
         });
