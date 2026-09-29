@@ -1661,43 +1661,50 @@
     // Dual-Tier Routing: Cloud (MQTT) -> Local HTTP Fallback (Wi-Fi)
     async function toggleRelay(num) {
       const statusEl = document.getElementById('status');
-      statusEl.innerText = `Sending Relay ${num} command...`;
+      statusEl.innerText = `Routing Relay ${num}...`;
 
       // Update tactile card visual & haptics immediately
       if (typeof window.applyRelayVisual === 'function') {
         window.applyRelayVisual(num);
       }
 
-      // Tier 1: Cloud (MQTT)
-      if (typeof mqttClient !== 'undefined' && mqttClient.connected) {
+      // Tier 1: Cloud (Instantly bypass if browser knows it is offline)
+      if (navigator.onLine && typeof mqttClient !== 'undefined' && mqttClient.connected) {
         mqttClient.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
         statusEl.innerText = `Relay ${num} toggled via Cloud`;
         return;
       }
 
-      // Tier 2: Local HTTP Fallback (Wi-Fi)
+      // Tier 2: Local HTTP Fallback
       const localIp = document.getElementById('hubIpInput').value || localStorage.getItem('hubLocalIp');
       if (!localIp) {
         statusEl.innerText = "Error: Enter Hub Local IP for offline control.";
         return;
       }
 
+      statusEl.innerText = `Cloud unreachable. Sending local request...`;
+      
+      // 2.5-second timeout to prevent the app from freezing if the IP is unreachable
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+
       try {
-        statusEl.innerText = `Cloud offline. Sending local request...`;
-        // Add ?t= timestamp to bypass browser cache
         const response = await fetch(`http://${localIp}/toggle${num}?t=${new Date().getTime()}`, { 
           method: 'GET',
-          mode: 'cors' 
+          mode: 'cors',
+          signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
         if (response.ok) {
           statusEl.innerText = `Relay ${num} toggled locally (Wi-Fi)`;
         } else {
-          statusEl.innerText = "Local request failed. Ensure phone is on home Wi-Fi.";
+          statusEl.innerText = "Local request rejected. Ensure Chrome Insecure Content is Allowed.";
         }
       } catch (err) {
+        clearTimeout(timeoutId);
         console.error("Local fetch error:", err);
-        statusEl.innerText = "Failed: Hub unreachable on local Wi-Fi.";
+        statusEl.innerText = "Failed: Ensure phone is on home Wi-Fi and Insecure Content is allowed.";
       }
     }
 
