@@ -1185,6 +1185,35 @@
       transform: scale(0.97);
     }
 
+    .pwa-install-btn {
+      background: rgba(0, 122, 255, 0.18);
+      border: 1px solid rgba(0, 122, 255, 0.4);
+      color: #38bdf8;
+      padding: 9px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 4px 15px rgba(0, 122, 255, 0.2);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .pwa-install-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(0, 122, 255, 0.32);
+      border-color: rgba(0, 122, 255, 0.65);
+      color: #ffffff;
+      box-shadow: 0 6px 20px rgba(0, 122, 255, 0.35);
+    }
+
+    .pwa-install-btn:active {
+      transform: scale(0.97);
+    }
+
     /* ==========================================================================
        Modal: Full Standalone HTML Code & ESP32 Flash Guide
        ========================================================================== */
@@ -1400,8 +1429,16 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          <span>📱 Download Android App (.apk)</span>
+          <span>📱 Download APK</span>
         </a>
+        <button type="button" class="pwa-install-btn" id="pwaInstallBtn" onclick="triggerPWAInstall()" title="Install Martin Hub to Home Screen (PWA)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            <path d="M8 2h8"></path>
+          </svg>
+          <span id="pwaBtnText">📲 Install to Home Screen</span>
+        </button>
       </div>
     </section>
 
@@ -1801,6 +1838,33 @@
         }
       }
     });
+
+    // PWA Install Prompt Handling
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const pwaBtn = document.getElementById('pwaInstallBtn');
+      if (pwaBtn) {
+        pwaBtn.style.display = 'inline-flex';
+      }
+    });
+
+    async function triggerPWAInstall() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          const pwaBtnText = document.getElementById('pwaBtnText');
+          if (pwaBtnText) pwaBtnText.innerText = "✓ Installed";
+          const statusEl = document.getElementById('status');
+          if (statusEl) statusEl.innerText = "Martin Hub installed to Home Screen!";
+        }
+        deferredPrompt = null;
+      } else {
+        alert("To install Martin Hub as a standalone app on your phone / PC:\n\n1. In Chrome / Edge: Tap the 3 dots (⋮) menu in the top-right corner.\n2. Tap 'Install app' or 'Add to Home screen'.\n3. On Safari (iPhone/iPad): Tap the Share button (⎋) and select 'Add to Home Screen'.");
+      }
+    }
 
     // Tri-Tier Cascade: Tier 1 (Bluetooth) -> Tier 2 (Cloud MQTT) -> Tier 3 (Local HTTP)
     async function toggleRelay(num) {
