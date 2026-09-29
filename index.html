@@ -1374,45 +1374,56 @@
     async function connectBLE() {
       try {
         const statusEl = document.getElementById('status');
-        statusEl.innerText = "Pairing Bluetooth...";
+        
+        // Auto-reconnect if already paired
+        if (bleDevice && !bleDevice.gatt.connected) {
+          statusEl.innerText = "Reconnecting Bluetooth...";
+          await setupGATT();
+          return;
+        }
+
+        // First time secure pairing (Requests OS PIN 123456)
+        statusEl.innerText = "Scanning for Hub...";
         bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'Martin-Hub' }],
+          filters: [{ services: [SERVICE_UUID] }],
           optionalServices: [SERVICE_UUID]
         });
 
         bleDevice.addEventListener('gattserverdisconnected', onBLEDisconnected);
         await setupGATT();
       } catch (err) {
-        console.warn("Bluetooth pairing cancelled or failed:", err);
+        console.warn("Bluetooth connection failed:", err);
+        document.getElementById('status').innerText = "Bluetooth Error. Try Again.";
       }
     }
 
     async function setupGATT() {
       if (!bleDevice) return;
-      const server = await bleDevice.gatt.connect();
-      const service = await server.getPrimaryService(SERVICE_UUID);
-      bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-      
-      const bleBtn = document.getElementById('bleConnectBtn');
-      if (bleBtn) {
-        bleBtn.innerText = "🟢 Bluetooth Active";
-        bleBtn.classList.add('ble-active');
+      try {
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        
+        const bleBtn = document.getElementById('bleConnectBtn');
+        if (bleBtn) {
+          bleBtn.innerText = "🟢 Bluetooth Active";
+          bleBtn.classList.add('ble-active');
+        }
+        document.getElementById('status').innerText = "Bluetooth Securely Linked";
+      } catch (error) {
+        console.error("GATT Setup Failed:", error);
+        onBLEDisconnected();
       }
-      document.getElementById('status').innerText = "Bluetooth Linked";
     }
 
     function onBLEDisconnected() {
+      bleCharacteristic = null; // Clear stale cache to fix reconnect bug
       const bleBtn = document.getElementById('bleConnectBtn');
       if (bleBtn) {
         bleBtn.innerText = "🔵 Reconnect Bluetooth";
         bleBtn.classList.remove('ble-active');
       }
-      document.getElementById('status').innerText = "Bluetooth Disconnected. Reconnecting...";
-      setTimeout(() => {
-        if (bleDevice && !bleDevice.gatt.connected) {
-          bleDevice.gatt.connect().then(setupGATT).catch(() => {});
-        }
-      }, 2000);
+      document.getElementById('status').innerText = "Bluetooth Disconnected.";
     }
 
     // Background auto-reconnect on page load if already paired
@@ -1447,7 +1458,7 @@
         sentViaCloud = true;
       }
 
-      // If Cloud is unreachable or offline, send over BLE
+      // Seamless Bluetooth Fallback if cloud is offline
       if (!sentViaCloud && bleCharacteristic) {
         try {
           const encoder = new TextEncoder();
@@ -1456,6 +1467,7 @@
           return;
         } catch (err) {
           console.error("BLE write failed:", err);
+          onBLEDisconnected();
         }
       }
 
