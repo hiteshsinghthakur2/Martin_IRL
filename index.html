@@ -961,115 +961,6 @@
       box-shadow: 0 0 15px rgba(32, 201, 151, 0.25);
     }
 
-    /* Hub Local IP Address Card (Offline Local HTTP Fallback) */
-    .hub-ip-card {
-      background: var(--bg-surface);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 12px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      flex-wrap: wrap;
-      box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.5);
-      transition: border-color 0.2s ease;
-    }
-
-    .hub-ip-card:focus-within {
-      border-color: rgba(32, 201, 151, 0.4);
-      box-shadow: 0 0 20px rgba(32, 201, 151, 0.15);
-    }
-
-    .hub-ip-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .hub-ip-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: var(--radius-md);
-      background: rgba(32, 201, 151, 0.12);
-      border: 1px solid rgba(32, 201, 151, 0.3);
-      color: #20c997;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .hub-ip-title {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--text-main);
-      display: block;
-      letter-spacing: -0.01em;
-    }
-
-    .hub-ip-hint {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      margin-top: 1px;
-    }
-
-    .hub-ip-input-box {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-      min-width: 220px;
-      justify-content: flex-end;
-    }
-
-    .hub-ip-input {
-      background: rgba(0, 0, 0, 0.5);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: 8px 14px;
-      color: #00d2ff;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.86rem;
-      font-weight: 600;
-      outline: none;
-      width: 100%;
-      max-width: 180px;
-      transition: all 0.2s ease;
-    }
-
-    .hub-ip-input:focus {
-      border-color: #20c997;
-      box-shadow: 0 0 12px rgba(32, 201, 151, 0.3);
-      background: rgba(0, 0, 0, 0.7);
-    }
-
-    .hub-ip-save-btn {
-      background: rgba(32, 201, 151, 0.15);
-      border: 1px solid rgba(32, 201, 151, 0.35);
-      color: #20c997;
-      border-radius: var(--radius-md);
-      padding: 8px 14px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-    }
-
-    .hub-ip-save-btn:hover {
-      background: rgba(32, 201, 151, 0.3);
-      color: #ffffff;
-      border-color: rgba(32, 201, 151, 0.6);
-      transform: translateY(-1px);
-    }
-
-    .hub-ip-save-btn:active {
-      transform: scale(0.96);
-    }
-
     /* ==========================================================================
        Modal: Full Standalone HTML Code & ESP32 Flash Guide
        ========================================================================== */
@@ -1228,37 +1119,6 @@
         </button>
       </div>
     </header>
-
-    <!-- Hub Local IP Address Card (Local Wi-Fi HTTP Fallback) -->
-    <section class="hub-ip-card" id="hubIpSection" aria-label="Local Hub IP Configuration">
-      <div class="hub-ip-left">
-        <div class="hub-ip-icon" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-            <line x1="6" y1="6" x2="6.01" y2="6"></line>
-            <line x1="6" y1="18" x2="6.01" y2="18"></line>
-          </svg>
-        </div>
-        <div>
-          <label for="hubIpInput" class="hub-ip-title">Hub Local IP Address</label>
-          <div class="hub-ip-hint">Local Wi-Fi HTTP Fallback</div>
-        </div>
-      </div>
-
-      <div class="hub-ip-input-box">
-        <input 
-          type="text" 
-          id="hubIpInput" 
-          class="hub-ip-input" 
-          placeholder="192.168.x.x" 
-          autocomplete="off" 
-          spellcheck="false"
-          title="ESP32 Local Network IP Address"
-        />
-        <button type="button" class="hub-ip-save-btn" onclick="saveHubLocalIp()">Save IP</button>
-      </div>
-    </section>
 
     <!-- Environmental & Hub Quick Glance -->
     <section class="glance-bar" aria-label="System Glance">
@@ -1461,8 +1321,8 @@
           <span style="color: #38bdf8;" id="bleTelemetryStatus">Standby</span>
         </div>
         <div class="broker-pill">
-          <span>Local IP:</span>
-          <span style="color: #a78bfa;" id="telemetryIpDisplay">Not Set</span>
+          <span>Local Hub:</span>
+          <span style="color: #a78bfa;" id="hubDiscoveryStatus">Auto (mDNS/Cloud)</span>
         </div>
       </div>
     </section>
@@ -1505,14 +1365,69 @@
        DUAL-ROUTING (CLOUD MQTT + WEB BLUETOOTH FALLBACK) & ESP32 CONTROLLER
        ========================================================================== -->
   <script>
-    // MQTT Cloud Connection
+    // MQTT Cloud Connection & Auto-Discovery
     let client;
     let mqttClient;
+
     if (typeof mqtt !== 'undefined') {
-      mqttClient = client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
-      mqttClient.on('connect', () => {
-        document.getElementById('status').innerText = 'System Ready (Cloud Active).';
+      const clientId = 'web_client_' + Math.random().toString(16).substr(2, 8);
+      mqttClient = client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+        clientId: clientId,
+        clean: true,
+        connectTimeout: 4000,
+        reconnectPeriod: 2000
       });
+
+      mqttClient.on('connect', () => {
+        const statusEl = document.getElementById('status');
+        if (statusEl) statusEl.innerText = 'HiveMQ Broker Connected (Ready)';
+
+        // 1. Auto-Discovery: subscribe to ESP32 local IP broadcast topic
+        mqttClient.subscribe('hitesh/project-martin/hub-ip', (err) => {
+          if (err) console.error("Subscription error on hub-ip:", err);
+        });
+
+        // 2. Hardware state feedback subscription
+        mqttClient.subscribe('hitesh/project-martin/#', (err) => {
+          if (err) console.error("Subscription error on wildcard:", err);
+        });
+      });
+
+      mqttClient.on('message', (topic, message) => {
+        const msgStr = message.toString();
+
+        // Auto-Discovery: read payload as string and silently save to localStorage under martin_hub_ip
+        if (topic === 'hitesh/project-martin/hub-ip' || topic.endsWith('/hub-ip')) {
+          const discoveredIp = msgStr.trim();
+          if (discoveredIp) {
+            localStorage.setItem('martin_hub_ip', discoveredIp);
+            console.log("Auto-discovered Martin Hub Local IP via MQTT:", discoveredIp);
+            const discoveryPill = document.getElementById('hubDiscoveryStatus');
+            if (discoveryPill) {
+              discoveryPill.innerText = "Discovered (Cloud)";
+              discoveryPill.style.color = "#20c997";
+            }
+          }
+          return;
+        }
+
+        // Hardware state synchronization
+        if (topic.includes('relay1')) {
+          if (typeof window.syncRelayVisualFromHardware === 'function') {
+            window.syncRelayVisualFromHardware(1, msgStr);
+          }
+        } else if (topic.includes('relay2')) {
+          if (typeof window.syncRelayVisualFromHardware === 'function') {
+            window.syncRelayVisualFromHardware(2, msgStr);
+          }
+        }
+      });
+
+      mqttClient.on('offline', () => {
+        const statusEl = document.getElementById('status');
+        if (statusEl) statusEl.innerText = "Cloud Broker Offline. Cascading to Local Tiers.";
+      });
+
       mqttClient.on('error', (err) => {
         console.warn('MQTT error:', err);
       });
@@ -1614,41 +1529,14 @@
       if (statusEl) statusEl.innerText = "Bluetooth Disconnected. Tap Connect to re-link.";
     }
 
-    // Hub Local IP Persistence (Local HTTP Fallback)
-    function saveHubLocalIp() {
-      const input = document.getElementById('hubIpInput');
-      if (input) {
-        const val = input.value.trim();
-        localStorage.setItem('hubLocalIp', val);
-        const statusEl = document.getElementById('status');
-        if (statusEl) {
-          statusEl.innerText = val ? `Hub Local IP saved: ${val}` : "Hub Local IP cleared.";
-        }
-        updateTelemetryIpDisplay();
-      }
-    }
-
-    function updateTelemetryIpDisplay() {
-      const displayEl = document.getElementById('telemetryIpDisplay');
-      if (displayEl) {
-        const input = document.getElementById('hubIpInput');
-        const ip = (input && input.value.trim()) || localStorage.getItem('hubLocalIp') || 'Not Set';
-        displayEl.innerText = ip;
-      }
-    }
-
     window.addEventListener('DOMContentLoaded', async () => {
-      // Restore saved local IP
-      const savedIp = localStorage.getItem('hubLocalIp') || '';
-      const input = document.getElementById('hubIpInput');
-      if (input) {
-        input.value = savedIp;
-        input.addEventListener('input', () => {
-          localStorage.setItem('hubLocalIp', input.value.trim());
-          updateTelemetryIpDisplay();
-        });
+      // Check if we have an auto-discovered IP in localStorage
+      const cachedIp = localStorage.getItem('martin_hub_ip');
+      const discoveryPill = document.getElementById('hubDiscoveryStatus');
+      if (discoveryPill) {
+        discoveryPill.innerText = cachedIp ? "Discovered (Cached)" : "Auto (mDNS/Cloud)";
+        discoveryPill.style.color = cachedIp ? "#20c997" : "#a78bfa";
       }
-      updateTelemetryIpDisplay();
 
       // Background BLE auto-reconnect if device is already paired
       if (navigator.bluetooth && navigator.bluetooth.getDevices) {
@@ -1667,7 +1555,7 @@
     });
 
     // Tri-Tier Cascade Priority:
-    // TIER 1 (Bluetooth) -> TIER 2 (Cloud MQTT) -> TIER 3 (Local IP HTTP)
+    // TIER 1 (Bluetooth) -> TIER 2 (Cloud MQTT) -> TIER 3 (Local Wi-Fi Offline Fallback)
     async function toggleRelay(num) {
       const statusEl = document.getElementById('status');
       if (statusEl) statusEl.innerText = `Routing Relay ${num}...`;
@@ -1677,7 +1565,7 @@
         window.applyRelayVisual(num);
       }
 
-      // TIER 1 (Bluetooth): If bleCharacteristic exists and is connected, write "TOGGLE_" + num for zero-latency control
+      // TIER 1 (Bluetooth): If bleCharacteristic is active, write "TOGGLE_" + num for zero-latency control
       if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected && bleCharacteristic) {
         try {
           const encoder = new TextEncoder();
@@ -1690,45 +1578,45 @@
         }
       }
 
-      // TIER 2 (Cloud): If BLE is not active, check if navigator.onLine is true and mqttClient is connected
+      // TIER 2 (Cloud): If BLE is not active and mqttClient.connected is true, publish "TOGGLE" to hitesh/project-martin/relay[num]
       if (navigator.onLine && typeof mqttClient !== 'undefined' && mqttClient.connected) {
         mqttClient.publish('hitesh/project-martin/relay' + num, 'TOGGLE');
         if (statusEl) statusEl.innerText = `Relay ${num} toggled via Cloud (Tier 2)`;
         return;
       }
 
-      // TIER 3 (Local IP): If both BLE and Cloud fail, use fetch() request to saved Local IP with 2.5s AbortController timeout
-      const localIpInput = document.getElementById('hubIpInput');
-      const localIp = (localIpInput && localIpInput.value.trim()) || localStorage.getItem('hubLocalIp');
-      
-      if (!localIp) {
-        if (statusEl) statusEl.innerText = "Error: BLE & Cloud offline. Configure Hub Local IP for Wi-Fi fallback.";
-        return;
-      }
+      // TIER 3 (Local Wi-Fi Offline Fallback): If BLE and Cloud fail, retrieve martin_hub_ip from localStorage.
+      // If the IP exists in storage, make a fetch() request to http://[STORED_IP]/toggle[num].
+      // If the IP does NOT exist in storage yet, fallback to requesting http://martin.local/toggle[num] (mDNS fallback).
+      const storedIp = localStorage.getItem('martin_hub_ip');
+      const targetHost = (storedIp && storedIp.trim()) ? storedIp.trim() : 'martin.local';
+      const targetUrl = `http://${targetHost}/toggle${num}?t=${Date.now()}`;
 
-      if (statusEl) statusEl.innerText = `Routing to local Hub IP (${localIp})...`;
-      
-      // 2.5-second timeout to prevent app from freezing if IP is unreachable
+      if (statusEl) statusEl.innerText = `Routing to local Hub (${targetHost})...`;
+
+      // Wrap in 2.5-second AbortController timeout to prevent hanging
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2500);
 
       try {
-        const response = await fetch(`http://${localIp}/toggle${num}?t=${new Date().getTime()}`, { 
+        const response = await fetch(targetUrl, {
           method: 'GET',
           mode: 'cors',
           signal: controller.signal
         });
-        
+
         clearTimeout(timeoutId);
         if (response.ok) {
-          if (statusEl) statusEl.innerText = `Relay ${num} toggled locally (Tier 3 Wi-Fi)`;
+          if (statusEl) statusEl.innerText = `Relay ${num} toggled locally (Tier 3 Wi-Fi · ${targetHost})`;
         } else {
-          if (statusEl) statusEl.innerText = "Local request rejected. Ensure Chrome Insecure Content is Allowed for this IP.";
+          if (statusEl) statusEl.innerText = `Local request rejected by ${targetHost}. Check network permission.`;
         }
       } catch (err) {
         clearTimeout(timeoutId);
         console.error("Local fetch error:", err);
-        if (statusEl) statusEl.innerText = "Failed: Hub unreachable at local IP (2.5s timeout). Ensure phone is on home Wi-Fi.";
+        if (statusEl) {
+          statusEl.innerText = `Failed: Hub unreachable at ${targetHost} (2.5s timeout). Ensure phone is on local Wi-Fi.`;
+        }
       }
     }
 
